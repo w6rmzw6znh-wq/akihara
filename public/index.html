@@ -1,309 +1,619 @@
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const db = require('./db');
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'akihara-secret-key-2026-change-in-prod';
-
-app.use(cors());
-app.use(express.json());
-app.use(express.static(path.join(__dirname, '../public')));
-
-function auth(req, res, next) {
-  const header = req.headers.authorization;
-  if (!header) return res.status(401).json({ error: 'Non autorisé' });
-  const token = header.split(' ')[1];
-  try {
-    req.user = jwt.verify(token, JWT_SECRET);
-    next();
-  } catch {
-    return res.status(401).json({ error: 'Token invalide' });
-  }
-}
-
-function adminOnly(req, res, next) {
-  if (!req.user?.isAdmin) return res.status(403).json({ error: 'Admin uniquement' });
-  next();
-}
-
-app.post('/api/register', (req, res) => {
-  try {
-    const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'Email et mot de passe requis' });
-    if (password.length < 6) return res.status(400).json({ error: 'Mot de passe trop court (min 6)' });
-
-    const cleanEmail = email.trim().toLowerCase();
-    const exists = db.prepare('SELECT id FROM users WHERE email = ?').get(cleanEmail);
-    if (exists) return res.status(400).json({ error: 'Cet email existe déjà' });
-
-    const hash = bcrypt.hashSync(password, 10);
-    const result = db.prepare('INSERT INTO users (email, password, balance) VALUES (?, ?, 1000)').run(cleanEmail, hash);
-    
-    const user = db.prepare('SELECT id, email, balance, is_admin, is_moderator, created_at FROM users WHERE id = ?').get(result.lastInsertRowid);
-    const token = jwt.sign({ id: user.id, email: user.email, isAdmin: !!user.is_admin, isModerator: !!user.is_moderator }, JWT_SECRET, { expiresIn: '30d' });
-
-    res.json({
-      token,
-      user: { id: user.id, email: user.email, balance: user.balance, isAdmin: !!user.is_admin, isModerator: !!user.is_moderator, createdAt: user.created_at }
-    });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-app.post('/api/login', (req, res) => {
-  try {
-    const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'Email et mot de passe requis' });
-
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.trim().toLowerCase());
-    if (!user || !bcrypt.compareSync(password, user.password)) {
-      return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Akihara Casino</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    body { font-family: 'Inter', sans-serif; background: #0d0d15; color: #eee; }
+    .game-card {
+      background: linear-gradient(160deg, #1a1a28, #12121c);
+      border: 1px solid #2e2e45;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
     }
+    .game-card:hover {
+      transform: translateY(-10px);
+      border-color: #a855f7;
+      box-shadow: 0 20px 40px rgba(168, 85, 247, 0.25);
+    }
+    .playing-card {
+      width: 72px; height: 100px;
+      background: white;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px; font-weight: 800;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.45);
+      margin: 0 4px;
+    }
+    .card-red { color: #e11d48; }
+    .card-black { color: #111; }
+    .plinko-ball { width: 16px; height: 16px; background: #fbbf24; border-radius: 50%; position: absolute; transition: all 0.8s ease-in; box-shadow: 0 0 10px #fbbf24; }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div id="auth-screen" class="min-h-screen flex items-center justify-center p-4">
+    <div class="bg-[#161622] rounded-2xl p-8 w-full max-w-md border border-purple-500/30">
+      <h1 class="text-4xl font-black text-center text-purple-400 mb-1 tracking-tight">AKIHARA</h1>
+      <p class="text-center text-gray-500 mb-8 text-sm tracking-widest">CASINO</p>
+      <div class="flex gap-2 mb-6">
+        <button onclick="showLogin()" id="btn-login" class="flex-1 py-2.5 rounded-lg bg-purple-600 text-white font-semibold">Connexion</button>
+        <button onclick="showRegister()" id="btn-register" class="flex-1 py-2.5 rounded-lg bg-gray-800 text-gray-300">Inscription</button>
+      </div>
+      <div id="login-form">
+        <input id="login-email" type="email" placeholder="Email" class="w-full mb-3 p-3.5 rounded-xl bg-black/40 border border-gray-700 focus:border-purple-500 outline-none">
+        <input id="login-pass" type="password" placeholder="Mot de passe" class="w-full mb-5 p-3.5 rounded-xl bg-black/40 border border-gray-700 focus:border-purple-500 outline-none">
+        <button onclick="login()" class="w-full py-3.5 rounded-xl bg-purple-600 font-bold text-white hover:bg-purple-500 transition">Se connecter</button>
+      </div>
+      <div id="register-form" class="hidden">
+        <input id="reg-email" type="email" placeholder="Email" class="w-full mb-3 p-3.5 rounded-xl bg-black/40 border border-gray-700 focus:border-purple-500 outline-none">
+        <input id="reg-pass" type="password" placeholder="Mot de passe" class="w-full mb-3 p-3.5 rounded-xl bg-black/40 border border-gray-700 focus:border-purple-500 outline-none">
+        <input id="reg-pass2" type="password" placeholder="Confirmer" class="w-full mb-5 p-3.5 rounded-xl bg-black/40 border border-gray-700 focus:border-purple-500 outline-none">
+        <button onclick="register()" class="w-full py-3.5 rounded-xl bg-purple-600 font-bold text-white">Créer mon compte</button>
+      </div>
+      <p id="auth-error" class="text-red-400 text-center mt-4 text-sm hidden"></p>
+    </div>
+  </div>
 
-    const token = jwt.sign({ id: user.id, email: user.email, isAdmin: !!user.is_admin, isModerator: !!user.is_moderator }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        balance: user.balance,
-        isAdmin: !!user.is_admin,
-        isModerator: !!user.is_moderator,
-        createdAt: user.created_at
-      }
-    });
-  } catch (e) {
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
+  <div id="app" class="hidden min-h-screen pb-20">
+    <header class="border-b border-purple-900/40 bg-black/60 backdrop-blur sticky top-0 z-40">
+      <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+        <h1 class="text-2xl font-black text-purple-400 cursor-pointer" onclick="showPage('games')">AKIHARA</h1>
+        <div class="flex items-center gap-5">
+          <div class="text-right">
+            <div class="text-[11px] text-gray-400 uppercase">Jetons</div>
+            <div id="balance" class="text-xl font-bold text-yellow-400">0</div>
+          </div>
+          <button onclick="logout()" class="text-sm text-red-400">Déconnexion</button>
+        </div>
+      </div>
+    </header>
 
-app.get('/api/me', auth, (req, res) => {
-  const user = db.prepare('SELECT id, email, balance, is_admin, is_moderator, created_at, last_daily, last_weekly, last_monthly FROM users WHERE id = ?').get(req.user.id);
-  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
-  res.json({
-    id: user.id,
-    email: user.email,
-    balance: user.balance,
-    isAdmin: !!user.is_admin,
-    isModerator: !!user.is_moderator,
-    createdAt: user.created_at,
-    lastDaily: user.last_daily,
-    lastWeekly: user.last_weekly,
-    lastMonthly: user.last_monthly
+    <nav class="border-b border-purple-900/30 bg-black/40">
+      <div class="max-w-6xl mx-auto px-4 flex gap-1 overflow-x-auto">
+        <button onclick="showPage('games')" class="nav-btn px-5 py-3 text-sm font-semibold border-b-2 border-purple-500 text-purple-300">Jeux</button>
+        <button onclick="showPage('bonus')" class="nav-btn px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-gray-400">Bonus</button>
+        <button onclick="showPage('profile')" class="nav-btn px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-gray-400">Profil</button>
+        <button id="admin-nav" onclick="showPage('admin')" class="nav-btn px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-gray-400 hidden">Admin</button>
+      </div>
+    </nav>
+
+    <main class="max-w-6xl mx-auto px-4 py-8">
+      <div id="page-games" class="page">
+        <h2 class="text-2xl font-bold mb-6 text-purple-300">Choisis un jeu</h2>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+          <div onclick="openGame('roulette')" class="game-card rounded-2xl p-6 cursor-pointer"><div class="text-7xl text-center mb-4">🎡</div><h3 class="font-bold text-lg text-center">Roulette</h3></div>
+          <div onclick="openGame('blackjack')" class="game-card rounded-2xl p-6 cursor-pointer"><div class="text-7xl text-center mb-4">🃏</div><h3 class="font-bold text-lg text-center">Blackjack</h3></div>
+          <div onclick="openGame('mines')" class="game-card rounded-2xl p-6 cursor-pointer"><div class="text-7xl text-center mb-4">💣</div><h3 class="font-bold text-lg text-center">Mines</h3></div>
+          <div onclick="openGame('slots1')" class="game-card rounded-2xl p-6 cursor-pointer"><div class="text-7xl text-center mb-4">🎰</div><h3 class="font-bold text-lg text-center">NeonSlots</h3></div>
+          <div onclick="openGame('slots2')" class="game-card rounded-2xl p-6 cursor-pointer"><div class="text-7xl text-center mb-4">💎</div><h3 class="font-bold text-lg text-center">CrystalSlots</h3></div>
+          <div onclick="openGame('dice')" class="game-card rounded-2xl p-6 cursor-pointer"><div class="text-7xl text-center mb-4">🎲</div><h3 class="font-bold text-lg text-center">Dice</h3></div>
+          <div onclick="openGame('plinko')" class="game-card rounded-2xl p-6 cursor-pointer"><div class="text-7xl text-center mb-4">📍</div><h3 class="font-bold text-lg text-center">Plinko</h3></div>
+          <div onclick="openGame('hilo')" class="game-card rounded-2xl p-6 cursor-pointer"><div class="text-7xl text-center mb-4">⬆️</div><h3 class="font-bold text-lg text-center">Hi-Lo</h3></div>
+        </div>
+      </div>
+
+      <div id="page-bonus" class="page hidden">
+        <h2 class="text-2xl font-bold mb-6 text-purple-300">Bonus</h2>
+        <div class="grid md:grid-cols-3 gap-6">
+          <div class="bg-[#161622] rounded-2xl p-6 text-center border border-purple-900/40"><div class="text-4xl mb-3">☀️</div><h3 class="font-bold text-xl mb-1">Journalier</h3><p class="text-yellow-400 text-3xl font-bold mb-5">+100</p><button onclick="claimBonus('daily')" class="w-full py-3 rounded-xl bg-purple-600 font-bold">Réclamer</button></div>
+          <div class="bg-[#161622] rounded-2xl p-6 text-center border border-purple-900/40"><div class="text-4xl mb-3">📅</div><h3 class="font-bold text-xl mb-1">Hebdomadaire</h3><p class="text-yellow-400 text-3xl font-bold mb-5">+1 000</p><button onclick="claimBonus('weekly')" class="w-full py-3 rounded-xl bg-purple-600 font-bold">Réclamer</button></div>
+          <div class="bg-[#161622] rounded-2xl p-6 text-center border border-purple-900/40"><div class="text-4xl mb-3">🌙</div><h3 class="font-bold text-xl mb-1">Mensuel</h3><p class="text-yellow-400 text-3xl font-bold mb-5">+10 000</p><button onclick="claimBonus('monthly')" class="w-full py-3 rounded-xl bg-purple-600 font-bold">Réclamer</button></div>
+        </div>
+      </div>
+
+      <div id="page-profile" class="page hidden">
+        <h2 class="text-2xl font-bold mb-6 text-purple-300">Mon Profil</h2>
+        <div class="bg-[#161622] rounded-2xl p-6 max-w-md border border-purple-900/40">
+          <div class="mb-5"><div class="text-sm text-gray-400 mb-1">Email</div><div id="profile-email" class="text-lg font-semibold"></div></div>
+          <div class="mb-5"><div class="text-sm text-gray-400 mb-1">Jetons</div><div id="profile-balance" class="text-3xl text-yellow-400 font-bold"></div></div>
+          <div><div class="text-sm text-gray-400 mb-1">Membre depuis</div><div id="profile-date" class="text-lg"></div></div>
+        </div>
+      </div>
+
+      <div id="page-admin" class="page hidden">
+        <h2 class="text-2xl font-bold mb-6 text-red-400">Panel Admin</h2>
+        <div class="bg-[#161622] rounded-2xl p-6 overflow-x-auto border border-purple-900/40">
+          <table class="w-full text-left">
+            <thead><tr class="border-b border-purple-900"><th class="pb-3">Email</th><th class="pb-3">Jetons</th><th class="pb-3">Rôle</th><th class="pb-3">Actions</th></tr></thead>
+            <tbody id="admin-users"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+
+    <div id="game-area" class="hidden fixed inset-0 bg-black/95 z-50 overflow-y-auto">
+      <div class="min-h-screen p-4">
+        <div class="max-w-5xl mx-auto">
+          <div class="flex justify-between items-center mb-6">
+            <h2 id="game-title" class="text-2xl font-bold text-purple-300"></h2>
+            <button onclick="closeGame()" class="text-gray-400 hover:text-white text-3xl">×</button>
+          </div>
+          <div id="game-content"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const API = window.location.origin;
+let token = localStorage.getItem('akihara_token');
+let currentUser = null;
+
+async function api(path, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(API + path, { ...options, headers });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Erreur');
+  return data;
+}
+
+function showError(msg) {
+  const el = document.getElementById('auth-error');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+function showLogin() {
+  document.getElementById('login-form').classList.remove('hidden');
+  document.getElementById('register-form').classList.add('hidden');
+  document.getElementById('btn-login').className = 'flex-1 py-2.5 rounded-lg bg-purple-600 text-white font-semibold';
+  document.getElementById('btn-register').className = 'flex-1 py-2.5 rounded-lg bg-gray-800 text-gray-300';
+  document.getElementById('auth-error').classList.add('hidden');
+}
+function showRegister() {
+  document.getElementById('login-form').classList.add('hidden');
+  document.getElementById('register-form').classList.remove('hidden');
+  document.getElementById('btn-register').className = 'flex-1 py-2.5 rounded-lg bg-purple-600 text-white font-semibold';
+  document.getElementById('btn-login').className = 'flex-1 py-2.5 rounded-lg bg-gray-800 text-gray-300';
+  document.getElementById('auth-error').classList.add('hidden');
+}
+async function register() {
+  const email = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-pass').value;
+  const pass2 = document.getElementById('reg-pass2').value;
+  if (!email || !password) return showError('Remplis tous les champs');
+  if (password !== pass2) return showError('Mots de passe différents');
+  try {
+    const data = await api('/api/register', { method: 'POST', body: JSON.stringify({ email, password }) });
+    token = data.token; localStorage.setItem('akihara_token', token); currentUser = data.user; startApp();
+  } catch (e) { showError(e.message); }
+}
+async function login() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-pass').value;
+  try {
+    const data = await api('/api/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+    token = data.token; localStorage.setItem('akihara_token', token); currentUser = data.user; startApp();
+  } catch (e) { showError(e.message); }
+}
+function logout() {
+  token = null; currentUser = null; localStorage.removeItem('akihara_token');
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('auth-screen').classList.remove('hidden');
+}
+async function startApp() {
+  try { currentUser = await api('/api/me'); } catch { return logout(); }
+  document.getElementById('auth-screen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  updateBalance();
+  document.getElementById('profile-email').textContent = currentUser.email;
+  document.getElementById('profile-date').textContent = new Date(currentUser.createdAt).toLocaleDateString('fr-FR');
+  if (currentUser.isAdmin) document.getElementById('admin-nav').classList.remove('hidden');
+  showPage('games');
+}
+function updateBalance() {
+  document.getElementById('balance').textContent = (currentUser?.balance || 0).toLocaleString();
+  document.getElementById('profile-balance').textContent = (currentUser?.balance || 0).toLocaleString();
+}
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+  document.getElementById('page-' + page).classList.remove('hidden');
+  if (page === 'admin') renderAdmin();
+}
+async function claimBonus(type) {
+  try {
+    const data = await api('/api/bonus/' + type, { method: 'POST' });
+    currentUser.balance = data.balance; updateBalance();
+    alert('+' + data.amount + ' jetons !');
+  } catch (e) { alert(e.message); }
+}
+async function renderAdmin() {
+  try {
+    const users = await api('/api/admin/users');
+    document.getElementById('admin-users').innerHTML = users.map(u => `
+      <tr class="border-b border-purple-900/30">
+        <td class="py-3">${u.email}</td>
+        <td class="py-3 text-yellow-400">${u.balance.toLocaleString()}</td>
+        <td class="py-3">${u.isAdmin ? '<span class="text-red-400 text-xs">Admin</span>' : u.isModerator ? '<span class="text-blue-400 text-xs">Modo</span>' : '<span class="text-gray-400 text-xs">Joueur</span>'}</td>
+        <td class="py-3 flex gap-2 flex-wrap">
+          <button onclick="adminAction(${u.id}, 1000, 'add')" class="text-xs bg-green-700 px-2 py-1 rounded">+1000</button>
+          <button onclick="adminAction(${u.id}, -1000, 'add')" class="text-xs bg-red-700 px-2 py-1 rounded">-1000</button>
+          <button onclick="adminSet(${u.id})" class="text-xs bg-purple-700 px-2 py-1 rounded">Set</button>
+          <button onclick="toggleMod(${u.id}, ${!u.isModerator})" class="text-xs ${u.isModerator ? 'bg-blue-700' : 'bg-gray-700'} px-2 py-1 rounded">${u.isModerator ? 'Retirer Modo' : 'Mettre Modo'}</button>
+        </td>
+      </tr>`).join('');
+  } catch (e) { alert(e.message); }
+}
+async function adminAction(userId, amount, mode) {
+  try {
+    await api('/api/admin/balance', { method: 'POST', body: JSON.stringify({ userId, amount, mode }) });
+    renderAdmin();
+    if (userId === currentUser.id) { currentUser = await api('/api/me'); updateBalance(); }
+  } catch (e) { alert(e.message); }
+}
+async function adminSet(userId) {
+  const val = prompt('Nouveau solde :');
+  if (val === null) return;
+  await adminAction(userId, parseInt(val), 'set');
+}
+async function toggleMod(userId, makeMod) {
+  try {
+    await api('/api/admin/moderator', { method: 'POST', body: JSON.stringify({ userId, isModerator: makeMod }) });
+    renderAdmin();
+  } catch (e) { alert(e.message); }
+}
+
+function openGame(game) {
+  document.getElementById('game-area').classList.remove('hidden');
+  const titles = { roulette: 'Roulette', slots1: 'NeonSlots', slots2: 'CrystalSlots', blackjack: 'Blackjack', mines: 'Mines', dice: 'Dice', plinko: 'Plinko', hilo: 'Hi-Lo' };
+  document.getElementById('game-title').textContent = titles[game] || game;
+  if (game === 'roulette') renderRoulette();
+  else if (game === 'slots1' || game === 'slots2') renderSlots(game);
+  else if (game === 'mines') renderMines();
+  else if (game === 'dice') renderDice();
+  else if (game === 'blackjack') renderBlackjack();
+  else if (game === 'plinko') renderPlinko();
+  else renderSimple(game);
+}
+function closeGame() { document.getElementById('game-area').classList.add('hidden'); }
+
+// ==================== PLINKO (avec bille) ====================
+function renderPlinko() {
+  document.getElementById('game-content').innerHTML = `
+    <div class="max-w-md mx-auto text-center bg-[#161622] rounded-2xl p-6 border border-purple-900/40">
+      <input id="plinko-bet" type="number" value="50" min="10" class="w-32 p-3 rounded-xl bg-black border border-purple-700 text-center text-xl mb-4">
+      <div class="relative h-64 bg-black/50 rounded-2xl mb-4 overflow-hidden border border-purple-800" id="plinko-board">
+        <div class="absolute top-4 left-1/2 -translate-x-1/2 w-4 h-4 bg-yellow-400 rounded-full" id="plinko-ball"></div>
+        <div class="absolute bottom-0 left-0 right-0 flex justify-around text-xs">
+          <div class="bg-green-600 px-2 py-1 rounded">x2</div>
+          <div class="bg-yellow-600 px-2 py-1 rounded">x1.5</div>
+          <div class="bg-red-600 px-2 py-1 rounded">x0.5</div>
+          <div class="bg-yellow-600 px-2 py-1 rounded">x1.5</div>
+          <div class="bg-green-600 px-2 py-1 rounded">x2</div>
+        </div>
+      </div>
+      <button onclick="playPlinko()" class="w-full py-4 rounded-xl bg-purple-600 font-bold">Lancer la bille</button>
+      <div id="plinko-result" class="mt-4 text-xl font-bold"></div>
+    </div>`;
+}
+
+async function playPlinko() {
+  const bet = parseInt(document.getElementById('plinko-bet').value) || 0;
+  if (bet < 10) return alert('Mise min 10');
+  const ball = document.getElementById('plinko-ball');
+  ball.style.transition = 'none';
+  ball.style.top = '16px';
+  ball.style.left = '50%';
+  setTimeout(() => {
+    ball.style.transition = 'all 1.2s ease-in';
+    const finalLeft = 20 + Math.random() * 60;
+    ball.style.left = finalLeft + '%';
+    ball.style.top = '85%';
+  }, 50);
+
+  try {
+    const data = await api('/api/game/simple', { method: 'POST', body: JSON.stringify({ bet, game: 'plinko' }) });
+    currentUser.balance = data.balance;
+    updateBalance();
+    setTimeout(() => {
+      document.getElementById('plinko-result').innerHTML = data.win 
+        ? `<span class="text-green-400">+${data.gain} (x${(data.gain/bet).toFixed(2)})</span>` 
+        : `<span class="text-red-400">Perdu</span>`;
+    }, 1300);
+  } catch (e) { alert(e.message); }
+}
+
+// ==================== Les autres jeux (Blackjack, Roulette, Mines, Slots, Dice) ====================
+// (Copie les fonctions des versions précédentes ici - elles restent identiques)
+
+let bjPlayer = [], bjDealer = [], bjBet = 0, bjActive = false;
+function renderBlackjack() {
+  document.getElementById('game-content').innerHTML = `
+    <div class="max-w-md mx-auto text-center bg-[#161622] rounded-2xl p-6 border border-purple-900/40">
+      <input id="bj-bet" type="number" value="50" min="10" class="w-32 p-3 rounded-xl bg-black border border-purple-700 text-center text-xl mb-4">
+      <button onclick="startBlackjack()" class="w-full py-3 rounded-xl bg-purple-600 font-bold mb-6">Distribuer</button>
+      <div id="bj-dealer" class="mb-6"><div class="text-sm text-gray-400 mb-2">Croupier</div><div id="dealer-cards" class="flex justify-center min-h-[110px]"></div><div id="dealer-score" class="mt-2 text-xl font-semibold"></div></div>
+      <div id="bj-player"><div class="text-sm text-gray-400 mb-2">Toi</div><div id="player-cards" class="flex justify-center min-h-[110px]"></div><div id="player-score" class="mt-2 text-xl font-semibold"></div></div>
+      <div id="bj-actions" class="mt-6 flex gap-3 justify-center hidden">
+        <button onclick="bjHit()" class="bg-purple-600 px-6 py-3 rounded-xl font-bold">Hit</button>
+        <button onclick="bjStand()" class="bg-gray-700 px-6 py-3 rounded-xl font-bold">Stand</button>
+      </div>
+      <div id="bj-result" class="mt-4 text-2xl font-bold"></div>
+    </div>`;
+}
+function drawCard() {
+  const values = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+  const suits = ['♠','♥','♦','♣'];
+  const v = values[Math.floor(Math.random()*values.length)];
+  const s = suits[Math.floor(Math.random()*suits.length)];
+  const color = (s === '♥' || s === '♦') ? 'card-red' : 'card-black';
+  return { display: `<div class="playing-card ${color}">${v}${s}</div>`, value: v };
+}
+function calcScore(cards) {
+  let score = 0, aces = 0;
+  cards.forEach(c => {
+    if (c.value === 'A') { aces++; score += 11; }
+    else if (['J','Q','K'].includes(c.value)) score += 10;
+    else score += parseInt(c.value);
   });
-});
-
-app.post('/api/bonus/:type', auth, (req, res) => {
-  const type = req.params.type;
-  if (!['daily', 'weekly', 'monthly'].includes(type)) return res.status(400).json({ error: 'Type invalide' });
-
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
-  const amounts = { daily: 100, weekly: 1000, monthly: 10000 };
-  const field = { daily: 'last_daily', weekly: 'last_weekly', monthly: 'last_monthly' }[type];
-  const duration = { daily: 86400000, weekly: 604800000, monthly: 2592000000 }[type];
-
-  if (user[field]) {
-    const diff = Date.now() - new Date(user[field]).getTime();
-    if (diff < duration) return res.status(400).json({ error: 'Bonus déjà réclamé. Reviens plus tard.' });
-  }
-
-  const amount = amounts[type];
-  db.prepare(`UPDATE users SET balance = balance + ?, ${field} = datetime('now') WHERE id = ?`).run(amount, req.user.id);
-  db.prepare('INSERT INTO transactions (user_id, type, amount, details) VALUES (?, ?, ?, ?)').run(req.user.id, 'bonus', amount, type);
-
-  const balance = db.prepare('SELECT balance FROM users WHERE id = ?').get(req.user.id).balance;
-  res.json({ success: true, amount, balance });
-});
-
-app.get('/api/admin/users', auth, adminOnly, (req, res) => {
-  const users = db.prepare('SELECT id, email, balance, is_admin, is_moderator, created_at FROM users ORDER BY id').all();
-  res.json(users.map(u => ({ ...u, isAdmin: !!u.is_admin, isModerator: !!u.is_moderator })));
-});
-
-app.post('/api/admin/balance', auth, adminOnly, (req, res) => {
-  const { userId, amount, mode } = req.body;
-  if (!userId || amount === undefined) return res.status(400).json({ error: 'Paramètres manquants' });
-
-  if (mode === 'set') {
-    db.prepare('UPDATE users SET balance = ? WHERE id = ?').run(Math.max(0, parseInt(amount)), userId);
+  while (score > 21 && aces > 0) { score -= 10; aces--; }
+  return score;
+}
+async function startBlackjack() {
+  const bet = parseInt(document.getElementById('bj-bet').value) || 0;
+  if (bet < 10 || bet > currentUser.balance) return alert('Mise invalide');
+  try {
+    const data = await api('/api/game/simple', { method: 'POST', body: JSON.stringify({ bet, game: 'blackjack' }) });
+    currentUser.balance = data.balance; updateBalance();
+    bjBet = bet; bjActive = true;
+    bjPlayer = [drawCard(), drawCard()];
+    bjDealer = [drawCard(), drawCard()];
+    updateBJ();
+    document.getElementById('bj-actions').classList.remove('hidden');
+    document.getElementById('bj-result').innerHTML = '';
+  } catch (e) { alert(e.message); }
+}
+function updateBJ() {
+  document.getElementById('player-cards').innerHTML = bjPlayer.map(c => c.display).join('');
+  document.getElementById('dealer-cards').innerHTML = bjDealer.map(c => c.display).join('');
+  document.getElementById('player-score').textContent = 'Score : ' + calcScore(bjPlayer);
+  document.getElementById('dealer-score').textContent = 'Score : ' + calcScore(bjDealer);
+}
+function bjHit() {
+  if (!bjActive) return;
+  bjPlayer.push(drawCard());
+  updateBJ();
+  if (calcScore(bjPlayer) > 21) endBJ(false);
+}
+function bjStand() {
+  if (!bjActive) return;
+  while (calcScore(bjDealer) < 17) bjDealer.push(drawCard());
+  updateBJ();
+  const p = calcScore(bjPlayer), d = calcScore(bjDealer);
+  if (p > 21) endBJ(false);
+  else if (d > 21 || p > d) endBJ(true);
+  else if (p === d) endBJ('push');
+  else endBJ(false);
+}
+function endBJ(result) {
+  bjActive = false;
+  document.getElementById('bj-actions').classList.add('hidden');
+  let msg = '';
+  if (result === true) {
+    const gain = bjBet * 2;
+    currentUser.balance += gain; updateBalance();
+    msg = `<span class="text-green-400">Gagné ! +${gain}</span>`;
+  } else if (result === 'push') {
+    currentUser.balance += bjBet; updateBalance();
+    msg = `<span class="text-yellow-400">Égalité</span>`;
   } else {
-    db.prepare('UPDATE users SET balance = MAX(0, balance + ?) WHERE id = ?').run(parseInt(amount), userId);
+    msg = `<span class="text-red-400">Perdu</span>`;
   }
-
-  const user = db.prepare('SELECT id, email, balance FROM users WHERE id = ?').get(userId);
-  db.prepare('INSERT INTO transactions (user_id, type, amount, details) VALUES (?, ?, ?, ?)').run(userId, 'admin', amount, mode || 'add');
-  res.json(user);
-});
-
-app.post('/api/admin/moderator', auth, adminOnly, (req, res) => {
-  const { userId, isModerator } = req.body;
-  if (!userId) return res.status(400).json({ error: 'ID manquant' });
-  db.prepare('UPDATE users SET is_moderator = ? WHERE id = ?').run(isModerator ? 1 : 0, userId);
-  res.json({ success: true });
-});
-
-function getBalance(userId) {
-  return db.prepare('SELECT balance FROM users WHERE id = ?').get(userId).balance;
+  document.getElementById('bj-result').innerHTML = msg;
 }
 
-function changeBalance(userId, amount) {
-  db.prepare('UPDATE users SET balance = MAX(0, balance + ?) WHERE id = ?').run(amount, userId);
-  return getBalance(userId);
+const REDS = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
+let currentBets = {};
+function renderRoulette() {
+  currentBets = {};
+  document.getElementById('game-content').innerHTML = `
+    <div class="grid lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 bg-[#161622] rounded-2xl p-5 border border-purple-900/40">
+        <div class="flex justify-center mb-6">
+          <div class="w-48 h-48 rounded-full bg-gradient-to-br from-red-600 via-black to-green-600 border-8 border-yellow-400 relative" id="roulette-wheel">
+            <div class="absolute top-4 left-1/2 -translate-x-1/2 w-3 h-3 bg-white rounded-full shadow"></div>
+          </div>
+        </div>
+        <div id="roulette-table" class="grid gap-1" style="grid-template-columns: repeat(13, minmax(0,1fr));"></div>
+      </div>
+      <div class="bg-[#161622] rounded-2xl p-5 text-center border border-purple-900/40">
+        <input id="roulette-chip" type="number" value="50" min="10" class="w-full mb-4 p-3 rounded-xl bg-black border border-purple-700 text-center text-xl">
+        <div id="total-bet" class="text-2xl font-bold text-yellow-400 mb-4">0</div>
+        <button onclick="spinRoulette()" class="w-full py-4 rounded-xl bg-purple-600 font-bold text-lg">LANCER</button>
+        <div id="roulette-result" class="mt-5"></div>
+      </div>
+    </div>`;
+  buildRouletteTable();
+}
+function buildRouletteTable() {
+  const table = document.getElementById('roulette-table');
+  table.innerHTML = `<div class="bg-green-600 text-white font-bold flex items-center justify-center rounded text-xs h-10" onclick="toggleBet(this,'number-0')">0</div>`;
+  for (let i = 1; i <= 36; i++) {
+    const color = REDS.includes(i) ? 'bg-red-600' : 'bg-gray-800';
+    table.innerHTML += `<div class="${color} text-white font-bold flex items-center justify-center rounded text-xs h-10" onclick="toggleBet(this,'number-${i}')">${i}</div>`;
+  }
+}
+function toggleBet(el, key) {
+  const chip = parseInt(document.getElementById('roulette-chip').value) || 50;
+  if (currentBets[key]) { delete currentBets[key]; el.classList.remove('ring-2', 'ring-yellow-400'); }
+  else { currentBets[key] = chip; el.classList.add('ring-2', 'ring-yellow-400'); }
+  const total = Object.values(currentBets).reduce((a,b)=>a+b,0);
+  document.getElementById('total-bet').textContent = total.toLocaleString();
+}
+async function spinRoulette() {
+  if (Object.keys(currentBets).length === 0) return alert('Place une mise');
+  const wheel = document.getElementById('roulette-wheel');
+  wheel.style.transition = 'transform 4s cubic-bezier(0.15, 0.85, 0.2, 1)';
+  wheel.style.transform = 'rotate(' + (360 * 6 + Math.random() * 360) + 'deg)';
+  try {
+    const data = await api('/api/game/roulette', { method: 'POST', body: JSON.stringify({ bets: currentBets }) });
+    currentUser.balance = data.balance;
+    updateBalance();
+    setTimeout(() => {
+      const colorClass = data.color === 'green' ? 'text-green-400' : (data.color === 'red' ? 'text-red-400' : 'text-gray-200');
+      const totalBet = Object.values(currentBets).reduce((a,b)=>a+b,0);
+      const mult = data.winAmount > 0 ? (data.winAmount / totalBet).toFixed(2) : 0;
+      document.getElementById('roulette-result').innerHTML = `
+        <div class="text-6xl font-bold ${colorClass} mb-2">${data.result}</div>
+        <div class="text-sm text-gray-400 mb-1">La bille s’est arrêtée sur</div>
+        <div class="mt-2">${data.winAmount > 0 
+          ? `<span class="text-green-400 text-xl">+${data.winAmount.toLocaleString()} <span class="text-sm">(x${mult})</span></span>` 
+          : '<span class="text-red-400">Perdu</span>'}</div>`;
+      currentBets = {};
+      document.querySelectorAll('.ring-yellow-400').forEach(e => e.classList.remove('ring-2', 'ring-yellow-400'));
+      document.getElementById('total-bet').textContent = '0';
+    }, 4000);
+  } catch (e) { alert(e.message); }
 }
 
-app.post('/api/game/dice', auth, (req, res) => {
-  const { bet, choice } = req.body;
-  if (!bet || bet < 10) return res.status(400).json({ error: 'Mise minimum 10' });
-  if (!['under', 'over'].includes(choice)) return res.status(400).json({ error: 'Choix invalide' });
-
-  const balance = getBalance(req.user.id);
-  if (balance < bet) return res.status(400).json({ error: 'Solde insuffisant' });
-
-  changeBalance(req.user.id, -bet);
-  const roll = Math.floor(Math.random() * 100) + 1;
-  const win = (choice === 'under' && roll < 50) || (choice === 'over' && roll > 50);
-  let gain = 0;
-  if (win) {
-    gain = Math.floor(bet * 1.95);
-    changeBalance(req.user.id, gain);
+function renderMines() {
+  document.getElementById('game-content').innerHTML = `
+    <div class="max-w-sm mx-auto text-center">
+      <div class="mb-4 flex items-center justify-center gap-3">
+        <span class="text-sm text-gray-400">Mines</span>
+        <input id="mines-count" type="number" value="5" min="1" max="20" class="w-20 p-2 rounded-xl bg-black border border-purple-700 text-center">
+      </div>
+      <input id="mines-bet" type="number" value="50" min="10" class="w-32 p-3 rounded-xl bg-black border border-purple-700 text-center text-xl mb-4">
+      <div id="mines-grid" class="grid grid-cols-5 gap-2 max-w-xs mx-auto mb-4"></div>
+      <button onclick="startMines()" class="w-full py-3 rounded-xl bg-purple-600 font-bold">Commencer</button>
+      <div id="mines-info" class="mt-4"></div>
+    </div>`;
+}
+let minesPos = [], minesBet = 0, minesActive = false, revealed = 0;
+async function startMines() {
+  const bet = parseInt(document.getElementById('mines-bet').value) || 0;
+  const count = parseInt(document.getElementById('mines-count').value) || 5;
+  try {
+    const data = await api('/api/game/mines/start', { method: 'POST', body: JSON.stringify({ bet }) });
+    currentUser.balance = data.balance; updateBalance();
+    minesPos = [];
+    while (minesPos.length < count) {
+      const p = Math.floor(Math.random() * 25);
+      if (!minesPos.includes(p)) minesPos.push(p);
+    }
+    minesBet = bet; revealed = 0; minesActive = true;
+    const grid = document.getElementById('mines-grid');
+    grid.innerHTML = '';
+    for (let i=0; i<25; i++) {
+      const btn = document.createElement('button');
+      btn.className = 'w-14 h-14 bg-[#1a1a2e] rounded-xl border border-purple-800 text-2xl hover:bg-purple-900/50';
+      btn.onclick = () => revealMine(i, btn);
+      grid.appendChild(btn);
+    }
+    document.getElementById('mines-info').textContent = 'Cliquez sur les cases';
+  } catch (e) { alert(e.message); }
+}
+function revealMine(pos, btn) {
+  if (!minesActive) return;
+  if (minesPos.includes(pos)) {
+    btn.textContent = '💣'; btn.className = 'w-14 h-14 bg-red-800 rounded-xl text-2xl';
+    minesActive = false;
+    document.getElementById('mines-info').innerHTML = '<span class="text-red-400">BOOM !</span>';
+  } else {
+    btn.textContent = '💎'; btn.className = 'w-14 h-14 bg-green-800 rounded-xl text-2xl'; btn.disabled = true;
+    revealed++;
+    document.getElementById('mines-info').innerHTML = `Diamants: ${revealed} <button onclick="cashoutMines()" class="ml-2 bg-yellow-500 text-black px-3 py-1 rounded font-bold text-sm">Encaisser</button>`;
   }
+}
+async function cashoutMines() {
+  if (!minesActive) return;
+  minesActive = false;
+  try {
+    const data = await api('/api/game/mines/cashout', { method: 'POST', body: JSON.stringify({ bet: minesBet, revealed }) });
+    currentUser.balance = data.balance; updateBalance();
+    document.getElementById('mines-info').innerHTML = `<span class="text-green-400 font-bold">+${data.gain} <span class="text-sm">(x${data.mult})</span></span>`;
+  } catch (e) { alert(e.message); }
+}
 
-  res.json({ roll, win, gain, balance: getBalance(req.user.id) });
-});
+function renderSlots(type) {
+  const isCrystal = type === 'slots2';
+  document.getElementById('game-content').innerHTML = `
+    <div class="max-w-md mx-auto">
+      <div class="bg-[#161622] rounded-3xl p-6 border-4 ${isCrystal?'border-cyan-500':'border-purple-500'}">
+        <div class="bg-black rounded-2xl p-5 mb-5">
+          <div class="flex justify-center gap-3 py-4">
+            <div class="w-24 h-28 bg-black rounded-xl border-2 ${isCrystal?'border-cyan-600':'border-purple-600'} flex items-center justify-center"><div id="reel1" class="text-6xl">🍒</div></div>
+            <div class="w-24 h-28 bg-black rounded-xl border-2 ${isCrystal?'border-cyan-600':'border-purple-600'} flex items-center justify-center"><div id="reel2" class="text-6xl">🍋</div></div>
+            <div class="w-24 h-28 bg-black rounded-xl border-2 ${isCrystal?'border-cyan-600':'border-purple-600'} flex items-center justify-center"><div id="reel3" class="text-6xl">🔔</div></div>
+          </div>
+        </div>
+        <input id="slots-bet" type="number" value="50" min="10" class="w-full mb-4 p-3 rounded-xl bg-black border border-purple-700 text-center text-xl">
+        <button onclick="spinSlots('${type}')" id="spin-btn" class="w-full py-4 rounded-2xl font-bold text-xl ${isCrystal?'bg-cyan-600':'bg-purple-600'}">SPIN</button>
+        <div id="slots-result" class="mt-4 text-center text-xl font-bold min-h-[40px]"></div>
+      </div>
+    </div>`;
+}
+async function spinSlots(type) {
+  const bet = parseInt(document.getElementById('slots-bet').value) || 0;
+  if (bet < 10) return alert('Mise min 10');
+  const btn = document.getElementById('spin-btn'); btn.disabled = true;
+  try {
+    let count = 0;
+    const interval = setInterval(() => {
+      const syms = type==='slots2' ? ['💎','💠','🔮','✨','👑','7️⃣'] : ['🍒','🍋','🔔','⭐','7️⃣','🍇'];
+      document.getElementById('reel1').textContent = syms[Math.floor(Math.random()*6)];
+      document.getElementById('reel2').textContent = syms[Math.floor(Math.random()*6)];
+      document.getElementById('reel3').textContent = syms[Math.floor(Math.random()*6)];
+      if (++count > 15) {
+        clearInterval(interval);
+        api('/api/game/slots', { method: 'POST', body: JSON.stringify({ bet, type: type==='slots2'?'crystal':'neon' }) })
+          .then(data => {
+            document.getElementById('reel1').textContent = data.symbols[0];
+            document.getElementById('reel2').textContent = data.symbols[1];
+            document.getElementById('reel3').textContent = data.symbols[2];
+            currentUser.balance = data.balance; updateBalance();
+            document.getElementById('slots-result').innerHTML = data.gain > 0 
+              ? `<span class="text-green-400">+${data.gain.toLocaleString()} <span class="text-sm">(x${data.mult})</span></span>`
+              : `<span class="text-red-400">Perdu</span>`;
+            btn.disabled = false;
+          }).catch(e => { alert(e.message); btn.disabled = false; });
+      }
+    }, 70);
+  } catch (e) { alert(e.message); btn.disabled = false; }
+}
 
-app.post('/api/game/slots', auth, (req, res) => {
-  const { bet, type } = req.body;
-  if (!bet || bet < 10) return res.status(400).json({ error: 'Mise minimum 10' });
+function renderDice() {
+  document.getElementById('game-content').innerHTML = `
+    <div class="max-w-md mx-auto bg-[#161622] rounded-2xl p-8 text-center border border-purple-900/40">
+      <input id="dice-bet" type="number" value="50" min="10" class="w-32 p-3 rounded-xl bg-black border border-purple-700 text-center text-xl mb-6">
+      <div class="flex gap-4 mb-6">
+        <button onclick="playDice('under')" class="flex-1 py-4 rounded-xl bg-purple-600 font-bold">SOUS 50</button>
+        <button onclick="playDice('over')" class="flex-1 py-4 rounded-xl bg-purple-600 font-bold">SUR 50</button>
+      </div>
+      <div id="dice-result" class="text-4xl font-bold"></div>
+    </div>`;
+}
+async function playDice(choice) {
+  const bet = parseInt(document.getElementById('dice-bet').value) || 0;
+  try {
+    const data = await api('/api/game/dice', { method: 'POST', body: JSON.stringify({ bet, choice }) });
+    currentUser.balance = data.balance; updateBalance();
+    document.getElementById('dice-result').innerHTML = `<div class="text-5xl mb-2">${data.roll}</div>${data.win ? '<span class="text-green-400">+'+data.gain+'</span>' : '<span class="text-red-400">Perdu</span>'}`;
+  } catch (e) { alert(e.message); }
+}
 
-  const balance = getBalance(req.user.id);
-  if (balance < bet) return res.status(400).json({ error: 'Solde insuffisant' });
+function renderSimple(game) {
+  document.getElementById('game-content').innerHTML = `
+    <div class="max-w-md mx-auto bg-[#161622] rounded-2xl p-8 text-center border border-purple-900/40">
+      <input id="simple-bet" type="number" value="50" min="10" class="w-32 p-3 rounded-xl bg-black border border-purple-700 text-center text-xl mb-6">
+      <button onclick="playSimple('${game}')" class="w-full py-4 rounded-xl bg-purple-600 font-bold">JOUER</button>
+      <div id="simple-result" class="mt-6 text-2xl"></div>
+    </div>`;
+}
+async function playSimple(game) {
+  const bet = parseInt(document.getElementById('simple-bet').value) || 0;
+  try {
+    const data = await api('/api/game/simple', { method: 'POST', body: JSON.stringify({ bet, game }) });
+    currentUser.balance = data.balance; updateBalance();
+    document.getElementById('simple-result').innerHTML = data.win ? `<span class="text-green-400">+${data.gain}</span>` : `<span class="text-red-400">Perdu</span>`;
+  } catch (e) { alert(e.message); }
+}
 
-  changeBalance(req.user.id, -bet);
-
-  const symbols = type === 'crystal' 
-    ? ['💎', '💠', '🔮', '✨', '👑', '7️⃣'] 
-    : ['🍒', '🍋', '🔔', '⭐', '7️⃣', '🍇'];
-
-  const s1 = symbols[Math.floor(Math.random() * symbols.length)];
-  const s2 = symbols[Math.floor(Math.random() * symbols.length)];
-  const s3 = symbols[Math.floor(Math.random() * symbols.length)];
-
-  let mult = 0;
-  if (s1 === s2 && s2 === s3) {
-    if (s1 === '7️⃣' || s1 === '👑') mult = 25;
-    else if (s1 === '🍒' || s1 === '💎') mult = 15;
-    else mult = 10;
-  } else if (s1 === s2 || s2 === s3 || s1 === s3) {
-    mult = 2;
-  }
-
-  let gain = 0;
-  if (mult > 0) {
-    gain = bet * mult;
-    changeBalance(req.user.id, gain);
-  }
-
-  res.json({ symbols: [s1, s2, s3], mult, gain, balance: getBalance(req.user.id) });
-});
-
-app.post('/api/game/simple', auth, (req, res) => {
-  const { bet, game } = req.body;
-  if (!bet || bet < 10) return res.status(400).json({ error: 'Mise minimum 10' });
-
-  const balance = getBalance(req.user.id);
-  if (balance < bet) return res.status(400).json({ error: 'Solde insuffisant' });
-
-  changeBalance(req.user.id, -bet);
-  const win = Math.random() > 0.48;
-  let gain = 0;
-  if (win) {
-    gain = Math.floor(bet * 1.9);
-    changeBalance(req.user.id, gain);
-  }
-
-  res.json({ win, gain, balance: getBalance(req.user.id), game });
-});
-
-app.post('/api/game/mines/start', auth, (req, res) => {
-  const { bet } = req.body;
-  if (!bet || bet < 10) return res.status(400).json({ error: 'Mise minimum 10' });
-
-  const balance = getBalance(req.user.id);
-  if (balance < bet) return res.status(400).json({ error: 'Solde insuffisant' });
-
-  changeBalance(req.user.id, -bet);
-
-  const mines = [];
-  while (mines.length < 5) {
-    const p = Math.floor(Math.random() * 25);
-    if (!mines.includes(p)) mines.push(p);
-  }
-
-  res.json({ success: true, bet, mines, balance: getBalance(req.user.id) });
-});
-
-app.post('/api/game/mines/cashout', auth, (req, res) => {
-  const { bet, revealed } = req.body;
-  if (!bet || !revealed || revealed < 1) return res.status(400).json({ error: 'Données invalides' });
-
-  const mult = 1 + revealed * 0.4;
-  const gain = Math.floor(bet * mult);
-  changeBalance(req.user.id, gain);
-
-  res.json({ gain, mult: mult.toFixed(2), balance: getBalance(req.user.id) });
-});
-
-app.post('/api/game/roulette', auth, (req, res) => {
-  const { bets } = req.body;
-  if (!bets || typeof bets !== 'object') return res.status(400).json({ error: 'Mises invalides' });
-
-  const totalBet = Object.values(bets).reduce((a, b) => a + b, 0);
-  if (totalBet < 10) return res.status(400).json({ error: 'Mise totale trop faible' });
-
-  const balance = getBalance(req.user.id);
-  if (balance < totalBet) return res.status(400).json({ error: 'Solde insuffisant' });
-
-  changeBalance(req.user.id, -totalBet);
-
-  const result = Math.floor(Math.random() * 37);
-  const REDS = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
-  const isRed = REDS.includes(result);
-
-  let winAmount = 0;
-  for (const [key, amount] of Object.entries(bets)) {
-    if (key.startsWith('number-') && parseInt(key.split('-')[1]) === result) winAmount += amount * 36;
-    else if (key === 'red' && isRed) winAmount += amount * 2;
-    else if (key === 'black' && result !== 0 && !isRed) winAmount += amount * 2;
-    else if (key === 'even' && result !== 0 && result % 2 === 0) winAmount += amount * 2;
-    else if (key === 'odd' && result % 2 === 1) winAmount += amount * 2;
-    else if (key === 'low' && result >= 1 && result <= 18) winAmount += amount * 2;
-    else if (key === 'high' && result >= 19) winAmount += amount * 2;
-    else if (key === 'dozen1' && result >= 1 && result <= 12) winAmount += amount * 3;
-    else if (key === 'dozen2' && result >= 13 && result <= 24) winAmount += amount * 3;
-    else if (key === 'dozen3' && result >= 25) winAmount += amount * 3;
-  }
-
-  if (winAmount > 0) changeBalance(req.user.id, winAmount);
-
-  res.json({
-    result,
-    color: result === 0 ? 'green' : (isRed ? 'red' : 'black'),
-    winAmount,
-    balance: getBalance(req.user.id)
-  });
-});
-
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/index.html'));
-});
-
-app.listen(PORT, () => {
-  console.log(`🎰 Akihara Casino running on port ${PORT}`);
-  console.log(`👤 Admin: zerr59 / 12345678`);
-});
+if (token) startApp();
+</script>
+</body>
+</html>
