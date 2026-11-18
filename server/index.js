@@ -84,4 +84,218 @@ app.post('/api/login', (req, res) => {
 
 app.get('/api/me', auth, (req, res) => {
   const user = db.prepare('SELECT id, email, balance, is_admin, created_at, last_daily, last_weekly, last_monthly FROM users WHERE id = ?').get(req.user.id);
-  if (!user
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  res.json({
+    id: user.id,
+    email: user.email,
+    balance: user.balance,
+    isAdmin: !!user.is_admin,
+    createdAt: user.created_at,
+    lastDaily: user.last_daily,
+    lastWeekly: user.last_weekly,
+    lastMonthly: user.last_monthly
+  });
+});
+
+app.post('/api/bonus/:type', auth, (req, res) => {
+  const type = req.params.type;
+  if (!['daily', 'weekly', 'monthly'].includes(type)) return res.status(400).json({ error: 'Type invalide' });
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  const amounts = { daily: 100, weekly: 1000, monthly: 10000 };
+  const field = { daily: 'last_daily', weekly: 'last_weekly', monthly: 'last_monthly' }[type];
+  const duration = { daily: 86400000, weekly: 604800000, monthly: 2592000000 }[type];
+
+  if (user[field]) {
+    const diff = Date.now() - new Date(user[field]).getTime();
+    if (diff < duration) return res.status(400).json({ error: 'Bonus déjà réclamé. Reviens plus tard.' });
+  }
+
+  const amount = amounts[type];
+  db.prepare(`UPDATE users SET balance = balance + ?, ${field} = datetime('now') WHERE id = ?`).run(amount, req.user.id);
+  db.prepare('INSERT INTO transactions (user_id, type, amount, details) VALUES (?, ?, ?, ?)').run(req.user.id, 'bonus', amount, type);
+
+  const balance = db.prepare('SELECT balance FROM users WHERE id = ?').get(req.user.id).balance;
+  res.json({ success: true, amount, balance });
+});
+
+app.get('/api/admin/users', auth, adminOnly, (req, res) => {
+  const users = db.prepare('SELECT id, email, balance, is_admin, created_at FROM users ORDER BY id').all();
+  res.json(users.map(u => ({ ...u, isAdmin: !!u.is_admin })));
+});
+
+app.post('/api/admin/balance', auth, adminOnly, (req, res) => {
+  const { userId, amount, mode } = req.body;
+  if (!userId || amount === undefined) return res.status(400).json({ error: 'Paramètres manquants' });
+
+  if (mode === 'set') {
+    db.prepare('UPDATE users SET balance = ? WHERE id = ?').run(Math.max(0, parseInt(amount)), userId);
+  } else {
+    db.prepare('UPDATE users SET balance = MAX(0, balance + ?) WHERE id = ?').run(parseInt(amount), userId);
+  }
+
+  const user = db.prepare('SELECT id, email, balance FROM users WHERE id = ?').get(userId);
+  db.prepare('INSERT INTO transactions (user_id, type, amount, details) VALUES (?, ?, ?, ?)').run(userId, 'admin', amount, mode || 'add');
+  res.json(user);
+});
+
+function getBalance(userId) {
+  return db.prepare('SELECT balance FROM users WHERE id = ?').get(userId).balance;
+}
+
+function changeBalance(userId, amount) {
+  db.prepare('UPDATE users SET balance = MAX(0, balance + ?) WHERE id = ?').run(amount, userId);
+  return getBalance(userId);
+}
+
+app.post('/api/game/dice', auth, (req, res) => {
+  const { bet, choice } = req.body;
+  if (!bet || bet < 10) return res.status(400).json({ error: 'Mise minimum 10' });
+  if (!['under', 'over'].includes(choice)) return res.status(400).json({ error: 'Choix invalide' });
+
+  const balance = getBalance(req.user.id);
+  if (balance < bet) return res.status(400).json({ error: 'Solde insuffisant' });
+
+  changeBalance(req.user.id, -bet);
+  const roll = Math.floor(Math.random() * 100) + 1;
+  const win = (choice === 'under' && roll < 50) || (choice === 'over' && roll > 50);
+  let gain = 0;
+  if (win) {
+    gain = Math.floor(bet * 1.95);
+    changeBalance(req.user.id, gain);
+  }
+
+  res.json({ roll, win, gain, balance: getBalance(req.user.id) });
+});
+
+app.post('/api/game/slots', auth, (req, res) => {
+  const { bet, type } = req.body;
+  if (!bet || bet < 10) return res.status(400).json({ error: 'Mise minimum 10' });
+
+  const balance = getBalance(req.user.id);
+  if (balance < bet) return res.status(400).json({ error: 'Solde insuffisant' });
+
+  changeBalance(req.user.id, -bet);
+
+  const symbols = type === 'crystal' 
+    ? ['💎', '💠', '🔮', '✨', '👑', '7️⃣'] 
+    : ['🍒', '🍋', '🔔', '⭐', '7️⃣', '🍇'];
+
+  const s1 = symbols[Math.floor(Math.random() * symbols.length)];
+  const s2 = symbols[Math.floor(Math.random() * symbols.length)];
+  const s3 = symbols[Math.floor(Math.random() * symbols.length)];
+
+  let mult = 0;
+  if (s1 === s2 && s2 === s3) {
+    if (s1 === '7️⃣' || s1 === '👑') mult = 25;
+    else if (s1 === '🍒' || s1 === '💎') mult = 15;
+    else mult = 10;
+  } else if (s1 === s2 || s2 === s3 || s1 === s3) {
+    mult = 2;
+  }
+
+  let gain = 0;
+  if (mult > 0) {
+    gain = bet * mult;
+    changeBalance(req.user.id, gain);
+  }
+
+  res.json({ symbols: [s1, s2, s3], mult, gain, balance: getBalance(req.user.id) });
+});
+
+app.post('/api/game/simple', auth, (req, res) => {
+  const { bet, game } = req.body;
+  if (!bet || bet < 10) return res.status(400).json({ error: 'Mise minimum 10' });
+
+  const balance = getBalance(req.user.id);
+  if (balance < bet) return res.status(400).json({ error: 'Solde insuffisant' });
+
+  changeBalance(req.user.id, -bet);
+  const win = Math.random() > 0.48;
+  let gain = 0;
+  if (win) {
+    gain = Math.floor(bet * 1.9);
+    changeBalance(req.user.id, gain);
+  }
+
+  res.json({ win, gain, balance: getBalance(req.user.id), game });
+});
+
+app.post('/api/game/mines/start', auth, (req, res) => {
+  const { bet } = req.body;
+  if (!bet || bet < 10) return res.status(400).json({ error: 'Mise minimum 10' });
+
+  const balance = getBalance(req.user.id);
+  if (balance < bet) return res.status(400).json({ error: 'Solde insuffisant' });
+
+  changeBalance(req.user.id, -bet);
+
+  const mines = [];
+  while (mines.length < 5) {
+    const p = Math.floor(Math.random() * 25);
+    if (!mines.includes(p)) mines.push(p);
+  }
+
+  res.json({ success: true, bet, mines, balance: getBalance(req.user.id) });
+});
+
+app.post('/api/game/mines/cashout', auth, (req, res) => {
+  const { bet, revealed } = req.body;
+  if (!bet || !revealed || revealed < 1) return res.status(400).json({ error: 'Données invalides' });
+
+  const mult = 1 + revealed * 0.4;
+  const gain = Math.floor(bet * mult);
+  changeBalance(req.user.id, gain);
+
+  res.json({ gain, mult: mult.toFixed(2), balance: getBalance(req.user.id) });
+});
+
+app.post('/api/game/roulette', auth, (req, res) => {
+  const { bets } = req.body;
+  if (!bets || typeof bets !== 'object') return res.status(400).json({ error: 'Mises invalides' });
+
+  const totalBet = Object.values(bets).reduce((a, b) => a + b, 0);
+  if (totalBet < 10) return res.status(400).json({ error: 'Mise totale trop faible' });
+
+  const balance = getBalance(req.user.id);
+  if (balance < totalBet) return res.status(400).json({ error: 'Solde insuffisant' });
+
+  changeBalance(req.user.id, -totalBet);
+
+  const result = Math.floor(Math.random() * 37);
+  const REDS = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
+  const isRed = REDS.includes(result);
+
+  let winAmount = 0;
+  for (const [key, amount] of Object.entries(bets)) {
+    if (key.startsWith('number-') && parseInt(key.split('-')[1]) === result) winAmount += amount * 36;
+    else if (key === 'red' && isRed) winAmount += amount * 2;
+    else if (key === 'black' && result !== 0 && !isRed) winAmount += amount * 2;
+    else if (key === 'even' && result !== 0 && result % 2 === 0) winAmount += amount * 2;
+    else if (key === 'odd' && result % 2 === 1) winAmount += amount * 2;
+    else if (key === 'low' && result >= 1 && result <= 18) winAmount += amount * 2;
+    else if (key === 'high' && result >= 19) winAmount += amount * 2;
+    else if (key === 'dozen1' && result >= 1 && result <= 12) winAmount += amount * 3;
+    else if (key === 'dozen2' && result >= 13 && result <= 24) winAmount += amount * 3;
+    else if (key === 'dozen3' && result >= 25) winAmount += amount * 3;
+  }
+
+  if (winAmount > 0) changeBalance(req.user.id, winAmount);
+
+  res.json({
+    result,
+    color: result === 0 ? 'green' : (isRed ? 'red' : 'black'),
+    winAmount,
+    balance: getBalance(req.user.id)
+  });
+});
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
+app.listen(PORT, () => {
+  console.log(`🎰 Akihara Casino running on port ${PORT}`);
+  console.log(`👤 Admin: zerr59 / 12345678`);
+});
+  
