@@ -7,7 +7,7 @@ const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'akihara-secret-key-2026-change-in-prod';
+const JWT_SECRET = process.env.JWT_SECRET || 'akihara-secret-key-2026';
 
 app.use(cors());
 app.use(express.json());
@@ -34,7 +34,7 @@ app.post('/api/register', (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email et mot de passe requis' });
-    if (password.length < 6) return res.status(400).json({ error: 'Mot de passe trop court (min 6)' });
+    if (password.length < 6) return res.status(400).json({ error: 'Mot de passe trop court' });
 
     const cleanEmail = email.trim().toLowerCase();
     const exists = db.prepare('SELECT id FROM users WHERE email = ?').get(cleanEmail);
@@ -48,7 +48,7 @@ app.post('/api/register', (req, res) => {
 
     res.json({
       token,
-      user: { id: user.id, email: user.email, balance: user.balance, isAdmin: !!user.is_admin, isModerator: !!user.is_moderator, createdAt: user.created_at }
+      user: { id: user.id, email: user.email, balance: user.balance || 0, isAdmin: !!user.is_admin, isModerator: !!user.is_moderator, createdAt: user.created_at }
     });
   } catch (e) {
     console.error(e);
@@ -72,7 +72,7 @@ app.post('/api/login', (req, res) => {
       user: {
         id: user.id,
         email: user.email,
-        balance: user.balance,
+        balance: user.balance || 0,
         isAdmin: !!user.is_admin,
         isModerator: !!user.is_moderator,
         createdAt: user.created_at
@@ -89,7 +89,7 @@ app.get('/api/me', auth, (req, res) => {
   res.json({
     id: user.id,
     email: user.email,
-    balance: user.balance,
+    balance: user.balance || 0,
     isAdmin: !!user.is_admin,
     isModerator: !!user.is_moderator,
     createdAt: user.created_at,
@@ -110,20 +110,20 @@ app.post('/api/bonus/:type', auth, (req, res) => {
 
   if (user[field]) {
     const diff = Date.now() - new Date(user[field]).getTime();
-    if (diff < duration) return res.status(400).json({ error: 'Bonus déjà réclamé. Reviens plus tard.' });
+    if (diff < duration) return res.status(400).json({ error: 'Bonus déjà réclamé' });
   }
 
   const amount = amounts[type];
   db.prepare(`UPDATE users SET balance = balance + ?, ${field} = datetime('now') WHERE id = ?`).run(amount, req.user.id);
   db.prepare('INSERT INTO transactions (user_id, type, amount, details) VALUES (?, ?, ?, ?)').run(req.user.id, 'bonus', amount, type);
 
-  const balance = db.prepare('SELECT balance FROM users WHERE id = ?').get(req.user.id).balance;
+  const balance = db.prepare('SELECT balance FROM users WHERE id = ?').get(req.user.id).balance || 0;
   res.json({ success: true, amount, balance });
 });
 
 app.get('/api/admin/users', auth, adminOnly, (req, res) => {
   const users = db.prepare('SELECT id, email, balance, is_admin, is_moderator, created_at FROM users ORDER BY id').all();
-  res.json(users.map(u => ({ ...u, isAdmin: !!u.is_admin, isModerator: !!u.is_moderator })));
+  res.json(users.map(u => ({ ...u, balance: u.balance || 0, isAdmin: !!u.is_admin, isModerator: !!u.is_moderator })));
 });
 
 app.post('/api/admin/balance', auth, adminOnly, (req, res) => {
@@ -138,7 +138,7 @@ app.post('/api/admin/balance', auth, adminOnly, (req, res) => {
 
   const user = db.prepare('SELECT id, email, balance FROM users WHERE id = ?').get(userId);
   db.prepare('INSERT INTO transactions (user_id, type, amount, details) VALUES (?, ?, ?, ?)').run(userId, 'admin', amount, mode || 'add');
-  res.json(user);
+  res.json({ ...user, balance: user.balance || 0 });
 });
 
 app.post('/api/admin/moderator', auth, adminOnly, (req, res) => {
@@ -149,7 +149,8 @@ app.post('/api/admin/moderator', auth, adminOnly, (req, res) => {
 });
 
 function getBalance(userId) {
-  return db.prepare('SELECT balance FROM users WHERE id = ?').get(userId).balance;
+  const row = db.prepare('SELECT balance FROM users WHERE id = ?').get(userId);
+  return row ? (row.balance || 0) : 0;
 }
 
 function changeBalance(userId, amount) {
