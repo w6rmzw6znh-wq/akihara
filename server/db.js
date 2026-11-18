@@ -12,6 +12,7 @@ db.exec(`
     password TEXT NOT NULL,
     balance INTEGER DEFAULT 1000,
     is_admin INTEGER DEFAULT 0,
+    is_moderator INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now')),
     last_daily TEXT,
     last_weekly TEXT,
@@ -28,6 +29,14 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
 `);
+
+// Ajoute la colonne si elle n'existe pas (pour les anciennes bases)
+try {
+  db.prepare('SELECT is_moderator FROM users LIMIT 1').get();
+} catch {
+  db.exec('ALTER TABLE users ADD COLUMN is_moderator INTEGER DEFAULT 0');
+  console.log('✅ Colonne is_moderator ajoutée');
+}
 
 const admin = db.prepare('SELECT id FROM users WHERE email = ?').get('zerr59');
 if (!admin) {
