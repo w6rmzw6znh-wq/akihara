@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Akihara Casino</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap');
+    body { font-family: 'Rajdhani', sans-serif; background: #07070c; color: #e8e8ff; }
+    .font-casino { font-family: 'Orbitron', sans-serif; }
+    .neon-text { text-shadow: 0 0 12px #c084fc, 0 0 25px #a855f7; }
+    .card { background: linear-gradient(145deg, #12121c, #0c0c14); border: 1px solid #2a2a3d; }
+    .btn-primary { background: linear-gradient(135deg, #7c3aed, #a855f7); transition: all 0.25s; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 0 25px rgba(168, 85, 247, 0.55); }
+    .game-card { transition: all 0.25s; }
+    .game-card:hover { transform: translateY(-6px); border-color: #a855f7; box-shadow: 0 10px 30px rgba(168, 85, 247, 0.25); }
+    .roulette-number { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; cursor: pointer; border-radius: 5px; transition: all 0.15s; }
+    .roulette-number:hover { transform: scale(1.15); z-index: 20; box-shadow: 0 0 10px white; }
+    .roulette-red { background: #dc2626; }
+    .roulette-black { background: #1f2937; }
+    .roulette-green { background: #16a34a; }
+    .selected-bet { outline: 3px solid #fbbf24 !important; outline-offset: 1px; }
+    .slot-window { background: linear-gradient(180deg, #0f0f18, #000); box-shadow: inset 0 0 15px rgba(0,0,0,0.8); }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div id="auth-screen" class="min-h-screen flex items-center justify-center p-4">
+    <div class="card rounded-2xl p-8 w-full max-w-md border border-purple-500/30">
+      <h1 class="font-casino text-4xl text-center neon-text mb-1">AKIHARA</h1>
+      <p class="text-center text-purple-300/80 mb-8 text-sm tracking-[0.3em]">CASINO</p>
+      <div class="flex gap-2 mb-6">
+        <button onclick="showLogin()" id="btn-login" class="flex-1 py-2.5 rounded-lg bg-purple-600 text-white font-semibold">Connexion</button>
+        <button onclick="showRegister()" id="btn-register" class="flex-1 py-2.5 rounded-lg bg-gray-800 text-gray-300">Inscription</button>
+      </div>
+      <div id="login-form">
+        <input id="login-email" type="email" placeholder="Email" class="w-full mb-3 p-3.5 rounded-xl bg-black/50 border border-purple-900/50 focus:border-purple-500 outline-none">
+        <input id="login-pass" type="password" placeholder="Mot de passe" class="w-full mb-5 p-3.5 rounded-xl bg-black/50 border border-purple-900/50 focus:border-purple-500 outline-none">
+        <button onclick="login()" class="btn-primary w-full py-3.5 rounded-xl font-bold text-white">Se connecter</button>
+      </div>
+      <div id="register-form" class="hidden">
+        <input id="reg-email" type="email" placeholder="Email" class="w-full mb-3 p-3.5 rounded-xl bg-black/50 border border-purple-900/50 focus:border-purple-500 outline-none">
+        <input id="reg-pass" type="password" placeholder="Mot de passe" class="w-full mb-3 p-3.5 rounded-xl bg-black/50 border border-purple-900/50 focus:border-purple-500 outline-none">
+        <input id="reg-pass2" type="password" placeholder="Confirmer" class="w-full mb-5 p-3.5 rounded-xl bg-black/50 border border-purple-900/50 focus:border-purple-500 outline-none">
+        <button onclick="register()" class="btn-primary w-full py-3.5 rounded-xl font-bold text-white">Créer mon compte</button>
+      </div>
+      <p id="auth-error" class="text-red-400 text-center mt-4 text-sm hidden"></p>
+    </div>
+  </div>
+
+  <div id="app" class="hidden min-h-screen">
+    <header class="border-b border-purple-900/40 bg-black/50 backdrop-blur sticky top-0 z-40">
+      <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+        <h1 class="font-casino text-2xl neon-text cursor-pointer" onclick="showPage('games')">AKIHARA</h1>
+        <div class="flex items-center gap-5">
+          <div class="text-right">
+            <div class="text-[11px] text-gray-400 uppercase">Jetons</div>
+            <div id="balance" class="font-casino text-xl text-yellow-400">0</div>
+          </div>
+          <button onclick="logout()" class="text-sm text-red-400">Déconnexion</button>
+        </div>
+      </div>
+    </header>
+
+    <nav class="border-b border-purple-900/30 bg-black/30">
+      <div class="max-w-6xl mx-auto px-4 flex gap-1 overflow-x-auto">
+        <button onclick="showPage('games')" class="nav-btn px-5 py-3 text-sm font-semibold border-b-2 border-purple-500 text-purple-300">Jeux</button>
+        <button onclick="showPage('bonus')" class="nav-btn px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-gray-400">Bonus</button>
+        <button onclick="showPage('profile')" class="nav-btn px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-gray-400">Profil</button>
+        <button id="admin-nav" onclick="showPage('admin')" class="nav-btn px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-gray-400 hidden">Admin</button>
+      </div>
+    </nav>
+
+    <main class="max-w-6xl mx-auto px-4 py-8">
+      <div id="page-games" class="page">
+        <h2 class="font-casino text-2xl mb-6 text-purple-300">Tous les jeux</h2>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+          <div onclick="openGame('roulette')" class="game-card card rounded-2xl p-5 cursor-pointer"><div class="text-5xl mb-3">🎡</div><h3 class="font-bold text-lg">Roulette</h3><p class="text-xs text-gray-400 mt-1">Européenne complète</p></div>
+          <div onclick="openGame('slots1')" class="game-card card rounded-2xl p-5 cursor-pointer relative"><div class="absolute top-0 right-0 bg-purple-600 text-[10px] px-2 py-1 rounded-bl-lg font-bold">CLASSIC</div><div class="text-5xl mb-3">🎰</div><h3 class="font-bold text-lg">NeonSlots</h3><p class="text-xs text-gray-400 mt-1">x25 max</p></div>
+          <div onclick="openGame('slots2')" class="game-card card rounded-2xl p-5 cursor-pointer relative"><div class="absolute top-0 right-0 bg-cyan-600 text-[10px] px-2 py-1 rounded-bl-lg font-bold">PREMIUM</div><div class="text-5xl mb-3">💎</div><h3 class="font-bold text-lg">CrystalSlots</h3><p class="text-xs text-gray-400 mt-1">x50 max</p></div>
+          <div onclick="openGame('blackjack')" class="game-card card rounded-2xl p-5 cursor-pointer"><div class="text-5xl mb-3">🃏</div><h3 class="font-bold text-lg">Blackjack</h3><p class="text-xs text-gray-400 mt-1">21</p></div>
+          <div onclick="openGame('mines')" class="game-card card rounded-2xl p-5 cursor-pointer"><div class="text-5xl mb-3">💣</div><h3 class="font-bold text-lg">Mines</h3><p class="text-xs text-gray-400 mt-1">5 mines</p></div>
+          <div onclick="openGame('dice')" class="game-card card rounded-2xl p-5 cursor-pointer"><div class="text-5xl mb-3">🎲</div><h3 class="font-bold text-lg">Dice</h3><p class="text-xs text-gray-400 mt-1">Sous / Sur 50</p></div>
+          <div onclick="openGame('plinko')" class="game-card card rounded-2xl p-5 cursor-pointer"><div class="text-5xl mb-3">📍</div><h3 class="font-bold text-lg">Plinko</h3><p class="text-xs text-gray-400 mt-1">Bille</p></div>
+          <div onclick="openGame('hilo')" class="game-card card rounded-2xl p-5 cursor-pointer"><div class="text-5xl mb-3">⬆️</div><h3 class="font-bold text-lg">Hi-Lo</h3><p class="text-xs text-gray-400 mt-1">Haut / Bas</p></div>
+        </div>
+      </div>
+
+      <div id="page-bonus" class="page hidden">
+        <h2 class="font-casino text-2xl mb-6 text-purple-300">Bonus</h2>
+        <div class="grid md:grid-cols-3 gap-6">
+          <div class="card rounded-2xl p-6 text-center"><div class="text-4xl mb-3">☀️</div><h3 class="font-bold text-xl mb-1">Journalier</h3><p class="text-yellow-400 font-casino text-3xl mb-5">+100</p><button id="btn-daily" onclick="claimBonus('daily')" class="btn-primary w-full py-3 rounded-xl font-bold">Réclamer</button><p id="daily-status" class="text-xs text-gray-400 mt-3"></p></div>
+          <div class="card rounded-2xl p-6 text-center"><div class="text-4xl mb-3">📅</div><h3 class="font-bold text-xl mb-1">Hebdomadaire</h3><p class="text-yellow-400 font-casino text-3xl mb-5">+1 000</p><button id="btn-weekly" onclick="claimBonus('weekly')" class="btn-primary w-full py-3 rounded-xl font-bold">Réclamer</button><p id="weekly-status" class="text-xs text-gray-400 mt-3"></p></div>
+          <div class="card rounded-2xl p-6 text-center"><div class="text-4xl mb-3">🌙</div><h3 class="font-bold text-xl mb-1">Mensuel</h3><p class="text-yellow-400 font-casino text-3xl mb-5">+10 000</p><button id="btn-monthly" onclick="claimBonus('monthly')" class="btn-primary w-full py-3 rounded-xl font-bold">Réclamer</button><p id="monthly-status" class="text-xs text-gray-400 mt-3"></p></div>
+        </div>
+      </div>
+
+      <div id="page-profile" class="page hidden">
+        <h2 class="font-casino text-2xl mb-6 text-purple-300">Mon Profil</h2>
+        <div class="card rounded-2xl p-6 max-w-md">
+          <div class="mb-5"><div class="text-sm text-gray-400 mb-1">Email</div><div id="profile-email" class="text-lg font-semibold"></div></div>
+          <div class="mb-5"><div class="text-sm text-gray-400 mb-1">Jetons</div><div id="profile-balance" class="text-3xl text-yellow-400 font-casino"></div></div>
+          <div><div class="text-sm text-gray-400 mb-1">Membre depuis</div><div id="profile-date" class="text-lg"></div></div>
+        </div>
+      </div>
+
+      <div id="page-admin" class="page hidden">
+        <h2 class="font-casino text-2xl mb-6 text-red-400">Panel Admin</h2>
+        <div class="card rounded-2xl p-6 overflow-x-auto">
+          <table class="w-full text-left">
+            <thead><tr class="border-b border-purple-900"><th class="pb-3">Email</th><th class="pb-3">Jetons</th><th class="pb-3">Actions</th></tr></thead>
+            <tbody id="admin-users"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+
+    <div id="game-area" class="hidden fixed inset-0 bg-black/95 z-50 overflow-y-auto">
+      <div class="min-h-screen p-4">
+        <div class="max-w-5xl mx-auto">
+          <div class="flex justify-between items-center mb-6">
+            <h2 id="game-title" class="font-casino text-2xl text-purple-300"></h2>
+            <button onclick="closeGame()" class="text-gray-400 hover:text-white text-3xl">×</button>
+          </div>
+          <div id="game-content"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const API = window.location.origin;
+let token = localStorage.getItem('akihara_token');
+let currentUser = null;
+
+async function api(path, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(API + path, { ...options, headers });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Erreur');
+  return data;
+}
+
+function showError(msg) {
+  const el = document.getElementById('auth-error');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function showLogin() {
+  document.getElementById('login-form').classList.remove('hidden');
+  document.getElementById('register-form').classList.add('hidden');
+  document.getElementById('btn-login').className = 'flex-1 py-2.5 rounded-lg bg-purple-600 text-white font-semibold';
+  document.getElementById('btn-register').className = 'flex-1 py-2.5 rounded-lg bg-gray-800 text-gray-300';
+  document.getElementById('auth-error').classList.add('hidden');
+}
+
+function showRegister() {
+  document.getElementById('login-form').classList.add('hidden');
+  document.getElementById('register-form').classList.remove('hidden');
+  document.getElementById('btn-register').className = 'flex-1 py-2.5 rounded-lg bg-purple-600 text-white font-semibold';
+  document.getElementById('btn-login').className = 'flex-1 py-2.5 rounded-lg bg-gray-800 text-gray-300';
+  document.getElementById('auth-error').classList.add('hidden');
+}
+
+async function register() {
+  const email = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-pass').value;
+  const pass2 = document.getElementById('reg-pass2').value;
+  if (!email || !password) return showError('Remplis tous les champs');
+  if (password !== pass2) return showError('Mots de passe différents');
+  try {
+    const data = await api('/api/register', { method: 'POST', body: JSON.stringify({ email, password }) });
+    token = data.token;
+    localStorage.setItem('akihara_token', token);
+    currentUser = data.user;
+    startApp();
+  } catch (e) { showError(e.message); }
+}
+
+async function login() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-pass').value;
+  try {
+    const data = await api('/api/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+    token = data.token;
+    localStorage.setItem('akihara_token', token);
+    currentUser = data.user;
+    startApp();
+  } catch (e) { showError(e.message); }
+}
+
+function logout() {
+  token = null;
+  currentUser = null;
+  localStorage.removeItem('akihara_token');
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('auth-screen').classList.remove('hidden');
+}
+
+async function startApp() {
+  try {
+    currentUser = await api('/api/me');
+  } catch {
+    return logout();
+  }
+  document.getElementById('auth-screen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  updateBalance();
+  document.getElementById('profile-email').textContent = currentUser.email;
+  document.getElementById('profile-date').textContent = new Date(currentUser.createdAt).toLocaleDateString('fr-FR');
+  if (currentUser.isAdmin) document.getElementById('admin-nav').classList.remove('hidden');
+  showPage('games');
+  updateBonusButtons();
+}
+
+function updateBalance() {
+  document.getElementById('balance').textContent = (currentUser?.balance || 0).toLocaleString();
+  document.getElementById('profile-balance').textContent = (currentUser?.balance || 0).toLocaleString();
+}
+
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+  document.getElementById('page-' + page).classList.remove('hidden');
+  if (page === 'admin') renderAdmin();
+  if (page === 'bonus') updateBonusButtons();
+}
+
+async function claimBonus(type) {
+  try {
+    const data = await api('/api/bonus/' + type, { method: 'POST' });
+    currentUser.balance = data.balance;
+    updateBalance();
+    updateBonusButtons();
+    alert('+' + data.amount + ' jetons !');
+  } catch (e) { alert(e.message); }
+}
+
+function updateBonusButtons() {
+  ['daily','weekly','monthly'].forEach(t => {
+    document.getElementById(t + '-status').textContent = 'Clique pour réclamer';
+  });
+}
+
+async function renderAdmin() {
+  try {
+    const users = await api('/api/admin/users');
+    const tbody = document.getElementById('admin-users');
+    tbody.innerHTML = users.map(u => `
+      <tr class="border-b border-purple-900/30">
+        <td class="py-3">${u.email} ${u.isAdmin ? '<span class="text-xs text-red-400">(admin)</span>' : ''}</td>
+        <td class="py-3 text-yellow-400">${u.balance.toLocaleString()}</td>
+        <td class="py-3 flex gap-2">
+          <button onclick="adminAction(${u.id}, 1000, 'add')" class="text-xs bg-green-700 px-2 py-1 rounded">+1000</button>
+          <button onclick="adminAction(${u.id}, -1000, 'add')" class="text-xs bg-red-700 px-2 py-1 rounded">-1000</button>
+          <button onclick="adminSet(${u.id})" class="text-xs bg-purple-700 px-2 py-1 rounded">Set</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (e) { alert(e.message); }
+}
+
+async function adminAction(userId, amount, mode) {
+  try {
+    await api('/api/admin/balance', { method: 'POST', body: JSON.stringify({ userId, amount, mode }) });
+    renderAdmin();
+    if (userId === currentUser.id) {
+      currentUser = await api('/api/me');
+      updateBalance();
+    }
+  } catch (e) { alert(e.message); }
+}
+
+async function adminSet(userId) {
+  const val = prompt('Nouveau solde :');
+  if (val === null) return;
+  await adminAction(userId, parseInt(val), 'set');
+}
+
+function openGame(game) {
+  document.getElementById('game-area').classList.remove('hidden');
+  const titles = { roulette: 'Roulette', slots1: 'NeonSlots', slots2: 'CrystalSlots', blackjack: 'Blackjack', mines: 'Mines', dice: 'Dice', plinko: 'Plinko', hilo: 'Hi-Lo' };
+  document.getElementById('game-title').textContent = titles[game] || game;
+  if (game === 'roulette') renderRoulette();
+  else if (game === 'slots1' || game === 'slots2') renderSlots(game);
+  else if (game === 'mines') renderMines();
+  else if (game === 'dice') renderDice();
+  else renderSimple(game);
+}
+
+function closeGame() {
+  document.getElementById('game-area').classList.add('hidden');
+}
+
+const REDS = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
+let currentBets = {};
+
+function renderRoulette() {
+  currentBets = {};
+  let html = `<div class="roulette-number roulette-green" onclick="toggleBet(this,'number-0')">0</div>`;
+  [[3,6,9,12,15,18,21,24,27,30,33,36],[2,5,8,11,14,17,20,23,26,29,32,35],[1,4,7,10,13,16,19,22,25,28,31,34]].forEach(row => {
+    row.forEach(n => {
+      html += `<div class="roulette-number ${REDS.includes(n)?'roulette-red':'roulette-black'}" onclick="toggleBet(this,'number-${n}')">${n}</div>`;
+    });
+  });
+
+  document.getElementById('game-content').innerHTML = `
+    <div class="grid lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 card rounded-2xl p-4">
+        <div class="grid gap-1 mb-4" style="grid-template-columns: repeat(13, minmax(0,1fr));">${html}</div>
+        <div class="grid grid-cols-3 gap-2">
+          <button class="py-3 rounded-lg bg-red-700 font-bold" onclick="toggleBet(this,'red')">ROUGE</button>
+          <button class="py-3 rounded-lg bg-gray-800 font-bold" onclick="toggleBet(this,'black')">NOIR</button>
+          <button class="py-3 rounded-lg bg-purple-800 font-bold" onclick="toggleBet(this,'even')">PAIR</button>
+          <button class="py-3 rounded-lg bg-purple-800 font-bold" onclick="toggleBet(this,'odd')">IMPAIR</button>
+          <button class="py-3 rounded-lg bg-indigo-900 font-bold" onclick="toggleBet(this,'low')">1-18</button>
+          <button class="py-3 rounded-lg bg-indigo-900 font-bold" onclick="toggleBet(this,'high')">19-36</button>
+        </div>
+      </div>
+      <div class="card rounded-2xl p-5">
+        <input id="roulette-chip" type="number" value="50" min="10" class="w-full mb-4 p-3 rounded-xl bg-black border border-purple-700 text-center text-xl font-casino">
+        <div id="bets-list" class="text-sm bg-black/40 rounded-xl p-3 min-h-[60px] mb-4">Aucune mise</div>
+        <div class="text-center mb-4"><div class="text-xs text-gray-400">TOTAL</div><div id="total-bet" class="text-2xl font-casino text-yellow-400">0</div></div>
+        <button onclick="spinRoulette()" class="btn-primary w-full py-4 rounded-xl font-bold text-lg mb-2">LANCER</button>
+        <button onclick="clearBets()" class="w-full py-2 rounded-xl bg-gray-800 text-sm">Effacer</button>
+        <div id="roulette-result" class="mt-5 text-center"></div>
+      </div>
+    </div>`;
+}
+
+function toggleBet(el, key) {
+  const chip = parseInt(document.getElementById('roulette-chip').value) || 50;
+  if (currentBets[key]) { delete currentBets[key]; el.classList.remove('selected-bet'); }
+  else { currentBets[key] = chip; el.classList.add('selected-bet'); }
+  const total = Object.values(currentBets).reduce((a,b)=>a+b,0);
+  document.getElementById('total-bet').textContent = total.toLocaleString();
+  document.getElementById('bets-list').innerHTML = Object.keys(currentBets).length ? Object.entries(currentBets).map(([k,v])=>`<div class="flex justify-between"><span>${k}</span><span class="text-yellow-400">${v}</span></div>`).join('') : 'Aucune mise';
+}
+
+function clearBets() {
+  currentBets = {};
+  document.querySelectorAll('.selected-bet').forEach(e => e.classList.remove('selected-bet'));
+  document.getElementById('total-bet').textContent = '0';
+  document.getElementById('bets-list').innerHTML = 'Aucune mise';
+  document.getElementById('roulette-result').innerHTML = '';
+}
+
+async function spinRoulette() {
+  if (Object.keys(currentBets).length === 0) return alert('Place une mise');
+  try {
+    document.getElementById('roulette-result').innerHTML = '<div class="text-4xl animate-spin">🎡</div>';
+    const data = await api('/api/game/roulette', { method: 'POST', body: JSON.stringify({ bets: currentBets }) });
+    currentUser.balance = data.balance;
+    updateBalance();
+    const colorClass = data.color === 'green' ? 'text-green-400' : (data.color === 'red' ? 'text-red-400' : 'text-gray-200');
+    document.getElementById('roulette-result').innerHTML = `
+      <div class="text-5xl font-casino ${colorClass}">${data.result}</div>
+      <div class="mt-2">${data.winAmount > 0 ? '<span class="text-green-400 text-xl">+'+data.winAmount.toLocaleString()+'</span>' : '<span class="text-red-400">Perdu</span>'}</div>`;
+    clearBets();
+  } catch (e) { alert(e.message); }
+}
+
+function renderSlots(type) {
+  const isCrystal = type === 'slots2';
+  document.getElementById('game-content').innerHTML = `
+    <div class="max-w-md mx-auto">
+      <div class="bg-gradient-to-b from-gray-800 to-gray-950 rounded-3xl p-6 border-4 ${isCrystal?'border-cyan-500':'border-purple-500'}">
+        <div class="bg-black rounded-2xl p-5 mb-5">
+          <div class="flex justify-center gap-3 py-4">
+            <div class="slot-window w-24 h-28 rounded-xl border-2 ${isCrystal?'border-cyan-600':'border-purple-600'} flex items-center justify-center"><div id="reel1" class="text-6xl">🍒</div></div>
+            <div class="slot-window w-24 h-28 rounded-xl border-2 ${isCrystal?'border-cyan-600':'border-purple-600'} flex items-center justify-center"><div id="reel2" class="text-6xl">🍋</div></div>
+            <div class="slot-window w-24 h-28 rounded-xl border-2 ${isCrystal?'border-cyan-600':'border-purple-600'} flex items-center justify-center"><div id="reel3" class="text-6xl">🔔</div></div>
+          </div>
+        </div>
+        <input id="slots-bet" type="number" value="50" min="10" class="w-full mb-4 p-3 rounded-xl bg-black border border-purple-700 text-center text-xl font-casino">
+        <button onclick="spinSlots('${type}')" id="spin-btn" class="w-full py-4 rounded-2xl font-bold text-xl ${isCrystal?'bg-gradient-to-r from-cyan-600 to-blue-600':'bg-gradient-to-r from-purple-600 to-pink-600'}">SPIN</button>
+        <div id="slots-result" class="mt-4 text-center text-xl font-bold min-h-[40px]"></div>
+      </div>
+    </div>`;
+}
+
+async function spinSlots(type) {
+  const bet = parseInt(document.getElementById('slots-bet').value) || 0;
+  if (bet < 10) return alert('Mise min 10');
+  const btn = document.getElementById('spin-btn');
+  btn.disabled = true;
+  try {
+    let count = 0;
+    const interval = setInterval(() => {
+      const syms = type==='slots2' ? ['💎','💠','🔮','✨','👑','7️⃣'] : ['🍒','🍋','🔔','⭐','7️⃣','🍇'];
+      document.getElementById('reel1').textContent = syms[Math.floor(Math.random()*6)];
+      document.getElementById('reel2').textContent = syms[Math.floor(Math.random()*6)];
+      document.getElementById('reel3').textContent = syms[Math.floor(Math.random()*6)];
+      if (++count > 15) {
+        clearInterval(interval);
+        api('/api/game/slots', { method: 'POST', body: JSON.stringify({ bet, type: type==='slots2'?'crystal':'neon' }) })
+          .then(data => {
+            document.getElementById('reel1').textContent = data.symbols[0];
+            document.getElementById('reel2').textContent = data.symbols[1];
+            document.getElementById('reel3').textContent = data.symbols[2];
+            currentUser.balance = data.balance;
+            updateBalance();
+            document.getElementById('slots-result').innerHTML = data.gain > 0 
+              ? `<span class="text-green-400">+${data.gain.toLocaleString()} (x${data.mult})</span>`
+              : `<span class="text-red-400">Perdu</span>`;
+            btn.disabled = false;
+          }).catch(e => { alert(e.message); btn.disabled = false; });
+      }
+    }, 70);
+  } catch (e) { alert(e.message); btn.disabled = false; }
+}
+
+function renderDice() {
+  document.getElementById('game-content').innerHTML = `
+    <div class="max-w-md mx-auto card rounded-2xl p-8 text-center">
+      <input id="dice-bet" type="number" value="50" min="10" class="w-32 p-3 rounded-xl bg-black border border-purple-700 text-center text-xl mb-6">
+      <div class="flex gap-4 mb-6">
+        <button onclick="playDice('under')" class="btn-primary flex-1 py-4 rounded-xl font-bold">SOUS 50</button>
+        <button onclick="playDice('over')" class="btn-primary flex-1 py-4 rounded-xl font-bold">SUR 50</button>
+      </div>
+      <div id="dice-result" class="text-4xl font-casino"></div>
+    </div>`;
+}
+
+async function playDice(choice) {
+  const bet = parseInt(document.getElementById('dice-bet').value) || 0;
+  try {
+    const data = await api('/api/game/dice', { method: 'POST', body: JSON.stringify({ bet, choice }) });
+    currentUser.balance = data.balance;
+    updateBalance();
+    document.getElementById('dice-result').innerHTML = `<div class="text-5xl mb-2">${data.roll}</div>${data.win ? '<span class="text-green-400">+'+data.gain+'</span>' : '<span class="text-red-400">Perdu</span>'}`;
+  } catch (e) { alert(e.message); }
+}
+
+let minesPos = [], minesBet = 0, minesActive = false, revealed = 0;
+
+function renderMines() {
+  document.getElementById('game-content').innerHTML = `
+    <div class="max-w-sm mx-auto text-center">
+      <input id="mines-bet" type="number" value="50" min="10" class="w-32 p-3 rounded-xl bg-black border border-purple-700 text-center text-xl mb-4">
+      <div id="mines-grid" class="grid grid-cols-5 gap-2 max-w-xs mx-auto mb-4"></div>
+      <button onclick="startMines()" class="btn-primary px-8 py-3 rounded-xl font-bold">Commencer</button>
+      <div id="mines-info" class="mt-4"></div>
+    </div>`;
+}
+
+async function startMines() {
+  const bet = parseInt(document.getElementById('mines-bet').value) || 0;
+  try {
+    const data = await api('/api/game/mines/start', { method: 'POST', body: JSON.stringify({ bet }) });
+    currentUser.balance = data.balance;
+    updateBalance();
+    minesPos = data.mines;
+    minesBet = bet;
+    revealed = 0;
+    minesActive = true;
+    const grid = document.getElementById('mines-grid');
+    grid.innerHTML = '';
+    for (let i=0; i<25; i++) {
+      const btn = document.createElement('button');
+      btn.className = 'w-14 h-14 bg-purple-900/50 rounded-xl border border-purple-700 text-2xl';
+      btn.onclick = () => revealMine(i, btn);
+      grid.appendChild(btn);
+    }
+    document.getElementById('mines-info').textContent = 'Cliquez...';
+  } catch (e) { alert(e.message); }
+}
+
+function revealMine(pos, btn) {
+  if (!minesActive) return;
+  if (minesPos.includes(pos)) {
+    btn.textContent = '💣';
+    btn.className = 'w-14 h-14 bg-red-800 rounded-xl text-2xl';
+    minesActive = false;
+    document.getElementById('mines-info').innerHTML = '<span class="text-red-400">BOOM !</span>';
+  } else {
+    btn.textContent = '💎';
+    btn.className = 'w-14 h-14 bg-green-800 rounded-xl text-2xl';
+    btn.disabled = true;
+    revealed++;
+    document.getElementById('mines-info').innerHTML = `Diamants: ${revealed} <button onclick="cashoutMines()" class="ml-2 bg-yellow-500 text-black px-3 py-1 rounded font-bold text-sm">Encaisser</button>`;
+  }
+}
+
+async function cashoutMines() {
+  if (!minesActive) return;
+  minesActive = false;
+  try {
+    const data = await api('/api/game/mines/cashout', { method: 'POST', body: JSON.stringify({ bet: minesBet, revealed }) });
+    currentUser.balance = data.balance;
+    updateBalance();
+    document.getElementById('mines-info').innerHTML = `<span class="text-green-400 font-bold">+${data.gain}</span>`;
+  } catch (e) { alert(e.message); }
+}
+
+function renderSimple(game) {
+  document.getElementById('game-content').innerHTML = `
+    <div class="max-w-md mx-auto card rounded-2xl p-8 text-center">
+      <input id="simple-bet" type="number" value="50" min="10" class="w-32 p-3 rounded-xl bg-black border border-purple-700 text-center text-xl mb-6">
+      <button onclick="playSimple('${game}')" class="btn-primary w-full py-4 rounded-xl font-bold">JOUER</button>
+      <div id="simple-result" class="mt-6 text-2xl"></div>
+    </div>`;
+}
+
+async function playSimple(game) {
+  const bet = parseInt(document.getElementById('simple-bet').value) || 0;
+  try {
+    const data = await api('/api/game/simple', { method: 'POST', body: JSON.stringify({ bet, game }) });
+    currentUser.balance = data.balance;
+    updateBalance();
+    document.getElementById('simple-result').innerHTML = data.win ? `<span class="text-green-400">+${data.gain}</span>` : `<span class="text-red-400">Perdu</span>`;
+  } catch (e) { alert(e.message); }
+}
+
+if (token) startApp();
+</script>
+</body>
+</html>
