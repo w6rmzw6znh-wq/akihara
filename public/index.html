@@ -6,65 +6,59 @@
   <title>Akihara Casino</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap');
-    body { font-family: 'Rajdhani', sans-serif; background: #07070c; color: #e8e8ff; }
-    .font-casino { font-family: 'Orbitron', sans-serif; }
-    .neon-text { text-shadow: 0 0 12px #c084fc, 0 0 25px #a855f7; }
-    .card { background: linear-gradient(145deg, #12121c, #0c0c14); border: 1px solid #2a2a3d; }
-    .btn-primary { background: linear-gradient(135deg, #7c3aed, #a855f7); transition: all 0.25s; }
-    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 0 25px rgba(168, 85, 247, 0.55); }
-    .game-card { transition: all 0.25s; }
-    .game-card:hover { transform: translateY(-6px); border-color: #a855f7; box-shadow: 0 10px 30px rgba(168, 85, 247, 0.25); }
-    .roulette-number { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; cursor: pointer; border-radius: 5px; transition: all 0.15s; }
-    .roulette-number:hover { transform: scale(1.15); z-index: 20; box-shadow: 0 0 10px white; }
-    .roulette-red { background: #dc2626; }
-    .roulette-black { background: #1f2937; }
-    .roulette-green { background: #16a34a; }
-    .selected-bet { outline: 3px solid #fbbf24 !important; outline-offset: 1px; }
-    .slot-window { background: linear-gradient(180deg, #0f0f18, #000); box-shadow: inset 0 0 15px rgba(0,0,0,0.8); }
-    .playing-card { width: 70px; height: 100px; background: white; color: black; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.4); margin: 0 4px; }
-    .wheel { width: 180px; height: 180px; border-radius: 50%; background: conic-gradient(#dc2626 0% 50%, #1f2937 50% 100%); border: 8px solid #fbbf24; margin: 0 auto; transition: transform 3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@700;900&display=swap');
+    body { font-family: 'Inter', sans-serif; background: #0a0a12; color: #eee; }
+    .font-title { font-family: 'Orbitron', sans-serif; }
+    .game-tile { background: linear-gradient(145deg, #12121e, #0c0c14); border: 1px solid #2a2a40; transition: all 0.3s; position: relative; overflow: hidden; }
+    .game-tile:hover { transform: translateY(-8px); border-color: #a855f7; box-shadow: 0 15px 40px rgba(168, 85, 247, 0.25); }
+    .game-tile::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at top right, rgba(168,85,247,0.15), transparent 50%); opacity: 0; transition: opacity 0.3s; }
+    .game-tile:hover::before { opacity: 1; }
+    .playing-card { width: 64px; height: 90px; background: white; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; box-shadow: 0 6px 15px rgba(0,0,0,0.4); margin: 0 3px; }
+    .card-red { color: #dc2626; }
+    .card-black { color: #111; }
+    .roulette-wheel { width: 200px; height: 200px; border-radius: 50%; background: conic-gradient(#dc2626 0% 48%, #111 48% 96%, #16a34a 96% 100%); border: 10px solid #fbbf24; position: relative; transition: transform 4s cubic-bezier(0.15, 0.85, 0.2, 1); }
+    .roulette-ball { width: 14px; height: 14px; background: white; border-radius: 50%; position: absolute; top: 12px; left: 50%; transform: translateX(-50%); box-shadow: 0 0 8px white; }
   </style>
 </head>
 <body class="min-h-screen">
   <div id="auth-screen" class="min-h-screen flex items-center justify-center p-4">
-    <div class="card rounded-2xl p-8 w-full max-w-md border border-purple-500/30">
-      <h1 class="font-casino text-4xl text-center neon-text mb-1">AKIHARA</h1>
-      <p class="text-center text-purple-300/80 mb-8 text-sm tracking-[0.3em]">CASINO</p>
+    <div class="bg-[#12121e] rounded-2xl p-8 w-full max-w-md border border-purple-500/30">
+      <h1 class="font-title text-4xl text-center text-purple-400 mb-1">AKIHARA</h1>
+      <p class="text-center text-gray-400 mb-8 text-sm tracking-widest">CASINO</p>
       <div class="flex gap-2 mb-6">
         <button onclick="showLogin()" id="btn-login" class="flex-1 py-2.5 rounded-lg bg-purple-600 text-white font-semibold">Connexion</button>
         <button onclick="showRegister()" id="btn-register" class="flex-1 py-2.5 rounded-lg bg-gray-800 text-gray-300">Inscription</button>
       </div>
       <div id="login-form">
-        <input id="login-email" type="email" placeholder="Email" class="w-full mb-3 p-3.5 rounded-xl bg-black/50 border border-purple-900/50 focus:border-purple-500 outline-none">
-        <input id="login-pass" type="password" placeholder="Mot de passe" class="w-full mb-5 p-3.5 rounded-xl bg-black/50 border border-purple-900/50 focus:border-purple-500 outline-none">
-        <button onclick="login()" class="btn-primary w-full py-3.5 rounded-xl font-bold text-white">Se connecter</button>
+        <input id="login-email" type="email" placeholder="Email" class="w-full mb-3 p-3.5 rounded-xl bg-black/40 border border-gray-700 focus:border-purple-500 outline-none">
+        <input id="login-pass" type="password" placeholder="Mot de passe" class="w-full mb-5 p-3.5 rounded-xl bg-black/40 border border-gray-700 focus:border-purple-500 outline-none">
+        <button onclick="login()" class="w-full py-3.5 rounded-xl bg-purple-600 font-bold text-white hover:bg-purple-500">Se connecter</button>
       </div>
       <div id="register-form" class="hidden">
-        <input id="reg-email" type="email" placeholder="Email" class="w-full mb-3 p-3.5 rounded-xl bg-black/50 border border-purple-900/50 focus:border-purple-500 outline-none">
-        <input id="reg-pass" type="password" placeholder="Mot de passe" class="w-full mb-3 p-3.5 rounded-xl bg-black/50 border border-purple-900/50 focus:border-purple-500 outline-none">
-        <input id="reg-pass2" type="password" placeholder="Confirmer" class="w-full mb-5 p-3.5 rounded-xl bg-black/50 border border-purple-900/50 focus:border-purple-500 outline-none">
-        <button onclick="register()" class="btn-primary w-full py-3.5 rounded-xl font-bold text-white">Créer mon compte</button>
+        <input id="reg-email" type="email" placeholder="Email" class="w-full mb-3 p-3.5 rounded-xl bg-black/40 border border-gray-700 focus:border-purple-500 outline-none">
+        <input id="reg-pass" type="password" placeholder="Mot de passe" class="w-full mb-3 p-3.5 rounded-xl bg-black/40 border border-gray-700 focus:border-purple-500 outline-none">
+        <input id="reg-pass2" type="password" placeholder="Confirmer" class="w-full mb-5 p-3.5 rounded-xl bg-black/40 border border-gray-700 focus:border-purple-500 outline-none">
+        <button onclick="register()" class="w-full py-3.5 rounded-xl bg-purple-600 font-bold text-white">Créer mon compte</button>
       </div>
       <p id="auth-error" class="text-red-400 text-center mt-4 text-sm hidden"></p>
     </div>
   </div>
 
   <div id="app" class="hidden min-h-screen">
-    <header class="border-b border-purple-900/40 bg-black/50 backdrop-blur sticky top-0 z-40">
+    <header class="border-b border-purple-900/40 bg-black/60 backdrop-blur sticky top-0 z-40">
       <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-        <h1 class="font-casino text-2xl neon-text cursor-pointer" onclick="showPage('games')">AKIHARA</h1>
+        <h1 class="font-title text-2xl text-purple-400 cursor-pointer" onclick="showPage('games')">AKIHARA</h1>
         <div class="flex items-center gap-5">
           <div class="text-right">
             <div class="text-[11px] text-gray-400 uppercase">Jetons</div>
-            <div id="balance" class="font-casino text-xl text-yellow-400">0</div>
+            <div id="balance" class="font-title text-xl text-yellow-400">0</div>
           </div>
           <button onclick="logout()" class="text-sm text-red-400">Déconnexion</button>
         </div>
       </div>
     </header>
 
-    <nav class="border-b border-purple-900/30 bg-black/30">
+    <nav class="border-b border-purple-900/30 bg-black/40">
       <div class="max-w-6xl mx-auto px-4 flex gap-1 overflow-x-auto">
         <button onclick="showPage('games')" class="nav-btn px-5 py-3 text-sm font-semibold border-b-2 border-purple-500 text-purple-300">Jeux</button>
         <button onclick="showPage('bonus')" class="nav-btn px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-gray-400">Bonus</button>
@@ -75,40 +69,64 @@
 
     <main class="max-w-6xl mx-auto px-4 py-8">
       <div id="page-games" class="page">
-        <h2 class="font-casino text-2xl mb-6 text-purple-300">Tous les jeux</h2>
+        <h2 class="font-title text-2xl mb-6 text-purple-300">Choisis un jeu</h2>
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-          <div onclick="openGame('roulette')" class="game-card card rounded-2xl p-5 cursor-pointer"><div class="text-5xl mb-3">🎡</div><h3 class="font-bold text-lg">Roulette</h3><p class="text-xs text-gray-400 mt-1">Roue animée</p></div>
-          <div onclick="openGame('slots1')" class="game-card card rounded-2xl p-5 cursor-pointer relative"><div class="absolute top-0 right-0 bg-purple-600 text-[10px] px-2 py-1 rounded-bl-lg font-bold">CLASSIC</div><div class="text-5xl mb-3">🎰</div><h3 class="font-bold text-lg">NeonSlots</h3></div>
-          <div onclick="openGame('slots2')" class="game-card card rounded-2xl p-5 cursor-pointer relative"><div class="absolute top-0 right-0 bg-cyan-600 text-[10px] px-2 py-1 rounded-bl-lg font-bold">PREMIUM</div><div class="text-5xl mb-3">💎</div><h3 class="font-bold text-lg">CrystalSlots</h3></div>
-          <div onclick="openGame('blackjack')" class="game-card card rounded-2xl p-5 cursor-pointer"><div class="text-5xl mb-3">🃏</div><h3 class="font-bold text-lg">Blackjack</h3><p class="text-xs text-gray-400 mt-1">Cartes + Score</p></div>
-          <div onclick="openGame('mines')" class="game-card card rounded-2xl p-5 cursor-pointer"><div class="text-5xl mb-3">💣</div><h3 class="font-bold text-lg">Mines</h3><p class="text-xs text-gray-400 mt-1">Choix des mines</p></div>
-          <div onclick="openGame('dice')" class="game-card card rounded-2xl p-5 cursor-pointer"><div class="text-5xl mb-3">🎲</div><h3 class="font-bold text-lg">Dice</h3></div>
-          <div onclick="openGame('plinko')" class="game-card card rounded-2xl p-5 cursor-pointer"><div class="text-5xl mb-3">📍</div><h3 class="font-bold text-lg">Plinko</h3></div>
-          <div onclick="openGame('hilo')" class="game-card card rounded-2xl p-5 cursor-pointer"><div class="text-5xl mb-3">⬆️</div><h3 class="font-bold text-lg">Hi-Lo</h3></div>
+          <div onclick="openGame('roulette')" class="game-tile rounded-2xl p-5 cursor-pointer">
+            <div class="text-6xl mb-3 text-center">🎡</div>
+            <h3 class="font-bold text-lg text-center">Roulette</h3>
+          </div>
+          <div onclick="openGame('blackjack')" class="game-tile rounded-2xl p-5 cursor-pointer">
+            <div class="text-6xl mb-3 text-center">🃏</div>
+            <h3 class="font-bold text-lg text-center">Blackjack</h3>
+          </div>
+          <div onclick="openGame('mines')" class="game-tile rounded-2xl p-5 cursor-pointer">
+            <div class="text-6xl mb-3 text-center">💣</div>
+            <h3 class="font-bold text-lg text-center">Mines</h3>
+          </div>
+          <div onclick="openGame('slots1')" class="game-tile rounded-2xl p-5 cursor-pointer">
+            <div class="text-6xl mb-3 text-center">🎰</div>
+            <h3 class="font-bold text-lg text-center">NeonSlots</h3>
+          </div>
+          <div onclick="openGame('slots2')" class="game-tile rounded-2xl p-5 cursor-pointer">
+            <div class="text-6xl mb-3 text-center">💎</div>
+            <h3 class="font-bold text-lg text-center">CrystalSlots</h3>
+          </div>
+          <div onclick="openGame('dice')" class="game-tile rounded-2xl p-5 cursor-pointer">
+            <div class="text-6xl mb-3 text-center">🎲</div>
+            <h3 class="font-bold text-lg text-center">Dice</h3>
+          </div>
+          <div onclick="openGame('plinko')" class="game-tile rounded-2xl p-5 cursor-pointer">
+            <div class="text-6xl mb-3 text-center">📍</div>
+            <h3 class="font-bold text-lg text-center">Plinko</h3>
+          </div>
+          <div onclick="openGame('hilo')" class="game-tile rounded-2xl p-5 cursor-pointer">
+            <div class="text-6xl mb-3 text-center">⬆️</div>
+            <h3 class="font-bold text-lg text-center">Hi-Lo</h3>
+          </div>
         </div>
       </div>
 
       <div id="page-bonus" class="page hidden">
-        <h2 class="font-casino text-2xl mb-6 text-purple-300">Bonus</h2>
+        <h2 class="font-title text-2xl mb-6 text-purple-300">Bonus</h2>
         <div class="grid md:grid-cols-3 gap-6">
-          <div class="card rounded-2xl p-6 text-center"><div class="text-4xl mb-3">☀️</div><h3 class="font-bold text-xl mb-1">Journalier</h3><p class="text-yellow-400 font-casino text-3xl mb-5">+100</p><button id="btn-daily" onclick="claimBonus('daily')" class="btn-primary w-full py-3 rounded-xl font-bold">Réclamer</button></div>
-          <div class="card rounded-2xl p-6 text-center"><div class="text-4xl mb-3">📅</div><h3 class="font-bold text-xl mb-1">Hebdomadaire</h3><p class="text-yellow-400 font-casino text-3xl mb-5">+1 000</p><button id="btn-weekly" onclick="claimBonus('weekly')" class="btn-primary w-full py-3 rounded-xl font-bold">Réclamer</button></div>
-          <div class="card rounded-2xl p-6 text-center"><div class="text-4xl mb-3">🌙</div><h3 class="font-bold text-xl mb-1">Mensuel</h3><p class="text-yellow-400 font-casino text-3xl mb-5">+10 000</p><button id="btn-monthly" onclick="claimBonus('monthly')" class="btn-primary w-full py-3 rounded-xl font-bold">Réclamer</button></div>
+          <div class="bg-[#12121e] rounded-2xl p-6 text-center border border-purple-900/40"><div class="text-4xl mb-3">☀️</div><h3 class="font-bold text-xl mb-1">Journalier</h3><p class="text-yellow-400 font-title text-3xl mb-5">+100</p><button onclick="claimBonus('daily')" class="w-full py-3 rounded-xl bg-purple-600 font-bold">Réclamer</button></div>
+          <div class="bg-[#12121e] rounded-2xl p-6 text-center border border-purple-900/40"><div class="text-4xl mb-3">📅</div><h3 class="font-bold text-xl mb-1">Hebdomadaire</h3><p class="text-yellow-400 font-title text-3xl mb-5">+1 000</p><button onclick="claimBonus('weekly')" class="w-full py-3 rounded-xl bg-purple-600 font-bold">Réclamer</button></div>
+          <div class="bg-[#12121e] rounded-2xl p-6 text-center border border-purple-900/40"><div class="text-4xl mb-3">🌙</div><h3 class="font-bold text-xl mb-1">Mensuel</h3><p class="text-yellow-400 font-title text-3xl mb-5">+10 000</p><button onclick="claimBonus('monthly')" class="w-full py-3 rounded-xl bg-purple-600 font-bold">Réclamer</button></div>
         </div>
       </div>
 
       <div id="page-profile" class="page hidden">
-        <h2 class="font-casino text-2xl mb-6 text-purple-300">Mon Profil</h2>
-        <div class="card rounded-2xl p-6 max-w-md">
+        <h2 class="font-title text-2xl mb-6 text-purple-300">Mon Profil</h2>
+        <div class="bg-[#12121e] rounded-2xl p-6 max-w-md border border-purple-900/40">
           <div class="mb-5"><div class="text-sm text-gray-400 mb-1">Email</div><div id="profile-email" class="text-lg font-semibold"></div></div>
-          <div class="mb-5"><div class="text-sm text-gray-400 mb-1">Jetons</div><div id="profile-balance" class="text-3xl text-yellow-400 font-casino"></div></div>
+          <div class="mb-5"><div class="text-sm text-gray-400 mb-1">Jetons</div><div id="profile-balance" class="text-3xl text-yellow-400 font-title"></div></div>
           <div><div class="text-sm text-gray-400 mb-1">Membre depuis</div><div id="profile-date" class="text-lg"></div></div>
         </div>
       </div>
 
       <div id="page-admin" class="page hidden">
-        <h2 class="font-casino text-2xl mb-6 text-red-400">Panel Admin</h2>
-        <div class="card rounded-2xl p-6 overflow-x-auto">
+        <h2 class="font-title text-2xl mb-6 text-red-400">Panel Admin</h2>
+        <div class="bg-[#12121e] rounded-2xl p-6 overflow-x-auto border border-purple-900/40">
           <table class="w-full text-left">
             <thead><tr class="border-b border-purple-900"><th class="pb-3">Email</th><th class="pb-3">Jetons</th><th class="pb-3">Actions</th></tr></thead>
             <tbody id="admin-users"></tbody>
@@ -121,7 +139,7 @@
       <div class="min-h-screen p-4">
         <div class="max-w-5xl mx-auto">
           <div class="flex justify-between items-center mb-6">
-            <h2 id="game-title" class="font-casino text-2xl text-purple-300"></h2>
+            <h2 id="game-title" class="font-title text-2xl text-purple-300"></h2>
             <button onclick="closeGame()" class="text-gray-400 hover:text-white text-3xl">×</button>
           </div>
           <div id="game-content"></div>
@@ -259,13 +277,13 @@ let bjPlayer = [], bjDealer = [], bjBet = 0, bjActive = false;
 
 function renderBlackjack() {
   document.getElementById('game-content').innerHTML = `
-    <div class="max-w-md mx-auto text-center card rounded-2xl p-6">
+    <div class="max-w-md mx-auto text-center bg-[#12121e] rounded-2xl p-6 border border-purple-900/40">
       <input id="bj-bet" type="number" value="50" min="10" class="w-32 p-3 rounded-xl bg-black border border-purple-700 text-center text-xl mb-4">
-      <button onclick="startBlackjack()" class="btn-primary px-8 py-3 rounded-xl font-bold mb-6">Distribuer</button>
-      <div id="bj-dealer" class="mb-4"><div class="text-sm text-gray-400 mb-2">Croupier</div><div id="dealer-cards" class="flex justify-center"></div><div id="dealer-score" class="mt-2 text-xl"></div></div>
-      <div id="bj-player"><div class="text-sm text-gray-400 mb-2">Toi</div><div id="player-cards" class="flex justify-center"></div><div id="player-score" class="mt-2 text-xl"></div></div>
+      <button onclick="startBlackjack()" class="w-full py-3 rounded-xl bg-purple-600 font-bold mb-6">Distribuer</button>
+      <div id="bj-dealer" class="mb-6"><div class="text-sm text-gray-400 mb-2">Croupier</div><div id="dealer-cards" class="flex justify-center min-h-[100px]"></div><div id="dealer-score" class="mt-2 text-xl font-semibold"></div></div>
+      <div id="bj-player"><div class="text-sm text-gray-400 mb-2">Toi</div><div id="player-cards" class="flex justify-center min-h-[100px]"></div><div id="player-score" class="mt-2 text-xl font-semibold"></div></div>
       <div id="bj-actions" class="mt-6 flex gap-3 justify-center hidden">
-        <button onclick="bjHit()" class="btn-primary px-6 py-3 rounded-xl font-bold">Hit</button>
+        <button onclick="bjHit()" class="bg-purple-600 px-6 py-3 rounded-xl font-bold">Hit</button>
         <button onclick="bjStand()" class="bg-gray-700 px-6 py-3 rounded-xl font-bold">Stand</button>
       </div>
       <div id="bj-result" class="mt-4 text-2xl font-bold"></div>
@@ -277,7 +295,7 @@ function drawCard() {
   const suits = ['♠','♥','♦','♣'];
   const v = values[Math.floor(Math.random()*values.length)];
   const s = suits[Math.floor(Math.random()*suits.length)];
-  const color = (s === '♥' || s === '♦') ? 'text-red-600' : 'text-black';
+  const color = (s === '♥' || s === '♦') ? 'card-red' : 'card-black';
   return { display: `<div class="playing-card ${color}">${v}${s}</div>`, value: v };
 }
 
@@ -349,41 +367,45 @@ function endBJ(result) {
   document.getElementById('bj-result').innerHTML = msg;
 }
 
-// ==================== ROULETTE (avec roue) ====================
+// ==================== ROULETTE ====================
 const REDS = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
 let currentBets = {};
 
 function renderRoulette() {
   currentBets = {};
-  let html = `<div class="roulette-number roulette-green" onclick="toggleBet(this,'number-0')">0</div>`;
-  [[3,6,9,12,15,18,21,24,27,30,33,36],[2,5,8,11,14,17,20,23,26,29,32,35],[1,4,7,10,13,16,19,22,25,28,31,34]].forEach(row => {
-    row.forEach(n => { html += `<div class="roulette-number ${REDS.includes(n)?'roulette-red':'roulette-black'}" onclick="toggleBet(this,'number-${n}')">${n}</div>`; });
-  });
   document.getElementById('game-content').innerHTML = `
     <div class="grid lg:grid-cols-3 gap-6">
-      <div class="lg:col-span-2 card rounded-2xl p-4">
-        <div class="grid gap-1 mb-4" style="grid-template-columns: repeat(13, minmax(0,1fr));">${html}</div>
-        <div class="grid grid-cols-3 gap-2">
-          <button class="py-3 rounded-lg bg-red-700 font-bold" onclick="toggleBet(this,'red')">ROUGE</button>
-          <button class="py-3 rounded-lg bg-gray-800 font-bold" onclick="toggleBet(this,'black')">NOIR</button>
-          <button class="py-3 rounded-lg bg-purple-800 font-bold" onclick="toggleBet(this,'even')">PAIR</button>
-          <button class="py-3 rounded-lg bg-purple-800 font-bold" onclick="toggleBet(this,'odd')">IMPAIR</button>
+      <div class="lg:col-span-2 bg-[#12121e] rounded-2xl p-5 border border-purple-900/40">
+        <div class="flex justify-center mb-6">
+          <div class="roulette-wheel" id="roulette-wheel">
+            <div class="roulette-ball"></div>
+          </div>
         </div>
+        <div id="roulette-table" class="grid gap-1" style="grid-template-columns: repeat(13, minmax(0,1fr));"></div>
       </div>
-      <div class="card rounded-2xl p-5 text-center">
-        <div class="wheel mb-4" id="roulette-wheel"></div>
-        <input id="roulette-chip" type="number" value="50" min="10" class="w-full mb-4 p-3 rounded-xl bg-black border border-purple-700 text-center text-xl font-casino">
-        <div id="total-bet" class="text-2xl font-casino text-yellow-400 mb-4">0</div>
-        <button onclick="spinRoulette()" class="btn-primary w-full py-4 rounded-xl font-bold text-lg">LANCER</button>
-        <div id="roulette-result" class="mt-5 text-center"></div>
+      <div class="bg-[#12121e] rounded-2xl p-5 text-center border border-purple-900/40">
+        <input id="roulette-chip" type="number" value="50" min="10" class="w-full mb-4 p-3 rounded-xl bg-black border border-purple-700 text-center text-xl">
+        <div id="total-bet" class="text-2xl font-title text-yellow-400 mb-4">0</div>
+        <button onclick="spinRoulette()" class="w-full py-4 rounded-xl bg-purple-600 font-bold text-lg">LANCER</button>
+        <div id="roulette-result" class="mt-5"></div>
       </div>
     </div>`;
+  buildRouletteTable();
+}
+
+function buildRouletteTable() {
+  const table = document.getElementById('roulette-table');
+  table.innerHTML = `<div class="roulette-number bg-green-600 text-white font-bold flex items-center justify-center rounded" onclick="toggleBet(this,'number-0')">0</div>`;
+  for (let i = 1; i <= 36; i++) {
+    const color = REDS.includes(i) ? 'bg-red-600' : 'bg-gray-800';
+    table.innerHTML += `<div class="roulette-number ${color} text-white font-bold flex items-center justify-center rounded text-xs" onclick="toggleBet(this,'number-${i}')">${i}</div>`;
+  }
 }
 
 function toggleBet(el, key) {
   const chip = parseInt(document.getElementById('roulette-chip').value) || 50;
-  if (currentBets[key]) { delete currentBets[key]; el.classList.remove('selected-bet'); }
-  else { currentBets[key] = chip; el.classList.add('selected-bet'); }
+  if (currentBets[key]) { delete currentBets[key]; el.classList.remove('ring-2', 'ring-yellow-400'); }
+  else { currentBets[key] = chip; el.classList.add('ring-2', 'ring-yellow-400'); }
   const total = Object.values(currentBets).reduce((a,b)=>a+b,0);
   document.getElementById('total-bet').textContent = total.toLocaleString();
 }
@@ -391,33 +413,33 @@ function toggleBet(el, key) {
 async function spinRoulette() {
   if (Object.keys(currentBets).length === 0) return alert('Place une mise');
   const wheel = document.getElementById('roulette-wheel');
-  wheel.style.transform = 'rotate(' + (360 * 5 + Math.random()*360) + 'deg)';
+  wheel.style.transform = 'rotate(' + (360 * 6 + Math.random()*360) + 'deg)';
   try {
     const data = await api('/api/game/roulette', { method: 'POST', body: JSON.stringify({ bets: currentBets }) });
     currentUser.balance = data.balance; updateBalance();
     setTimeout(() => {
       const colorClass = data.color === 'green' ? 'text-green-400' : (data.color === 'red' ? 'text-red-400' : 'text-gray-200');
       document.getElementById('roulette-result').innerHTML = `
-        <div class="text-5xl font-casino ${colorClass}">${data.result}</div>
+        <div class="text-5xl font-title ${colorClass}">${data.result}</div>
         <div class="mt-2">${data.winAmount > 0 ? '<span class="text-green-400 text-xl">+'+data.winAmount.toLocaleString()+'</span>' : '<span class="text-red-400">Perdu</span>'}</div>`;
       currentBets = {};
-      document.querySelectorAll('.selected-bet').forEach(e => e.classList.remove('selected-bet'));
+      document.querySelectorAll('.ring-yellow-400').forEach(e => e.classList.remove('ring-2', 'ring-yellow-400'));
       document.getElementById('total-bet').textContent = '0';
-    }, 3000);
+    }, 4000);
   } catch (e) { alert(e.message); }
 }
 
-// ==================== MINES (choix du nombre) ====================
+// ==================== MINES ====================
 function renderMines() {
   document.getElementById('game-content').innerHTML = `
     <div class="max-w-sm mx-auto text-center">
-      <div class="mb-4">
-        <label class="text-sm text-gray-400">Nombre de mines</label>
-        <input id="mines-count" type="number" value="5" min="1" max="20" class="w-24 p-2 rounded-xl bg-black border border-purple-700 text-center ml-2">
+      <div class="mb-4 flex items-center justify-center gap-3">
+        <span class="text-sm text-gray-400">Mines</span>
+        <input id="mines-count" type="number" value="5" min="1" max="20" class="w-20 p-2 rounded-xl bg-black border border-purple-700 text-center">
       </div>
       <input id="mines-bet" type="number" value="50" min="10" class="w-32 p-3 rounded-xl bg-black border border-purple-700 text-center text-xl mb-4">
       <div id="mines-grid" class="grid grid-cols-5 gap-2 max-w-xs mx-auto mb-4"></div>
-      <button onclick="startMines()" class="btn-primary px-8 py-3 rounded-xl font-bold">Commencer</button>
+      <button onclick="startMines()" class="w-full py-3 rounded-xl bg-purple-600 font-bold">Commencer</button>
       <div id="mines-info" class="mt-4"></div>
     </div>`;
 }
@@ -440,11 +462,11 @@ async function startMines() {
     grid.innerHTML = '';
     for (let i=0; i<25; i++) {
       const btn = document.createElement('button');
-      btn.className = 'w-14 h-14 bg-purple-900/50 rounded-xl border border-purple-700 text-2xl';
+      btn.className = 'w-14 h-14 bg-[#1a1a2e] rounded-xl border border-purple-800 text-2xl hover:bg-purple-900/50';
       btn.onclick = () => revealMine(i, btn);
       grid.appendChild(btn);
     }
-    document.getElementById('mines-info').textContent = 'Cliquez...';
+    document.getElementById('mines-info').textContent = 'Cliquez sur les cases';
   } catch (e) { alert(e.message); }
 }
 
@@ -471,21 +493,21 @@ async function cashoutMines() {
   } catch (e) { alert(e.message); }
 }
 
-// ==================== AUTRES JEUX (inchangés) ====================
+// ==================== SLOTS / DICE / SIMPLE ====================
 function renderSlots(type) {
   const isCrystal = type === 'slots2';
   document.getElementById('game-content').innerHTML = `
     <div class="max-w-md mx-auto">
-      <div class="bg-gradient-to-b from-gray-800 to-gray-950 rounded-3xl p-6 border-4 ${isCrystal?'border-cyan-500':'border-purple-500'}">
+      <div class="bg-[#12121e] rounded-3xl p-6 border-4 ${isCrystal?'border-cyan-500':'border-purple-500'}">
         <div class="bg-black rounded-2xl p-5 mb-5">
           <div class="flex justify-center gap-3 py-4">
-            <div class="slot-window w-24 h-28 rounded-xl border-2 ${isCrystal?'border-cyan-600':'border-purple-600'} flex items-center justify-center"><div id="reel1" class="text-6xl">🍒</div></div>
-            <div class="slot-window w-24 h-28 rounded-xl border-2 ${isCrystal?'border-cyan-600':'border-purple-600'} flex items-center justify-center"><div id="reel2" class="text-6xl">🍋</div></div>
-            <div class="slot-window w-24 h-28 rounded-xl border-2 ${isCrystal?'border-cyan-600':'border-purple-600'} flex items-center justify-center"><div id="reel3" class="text-6xl">🔔</div></div>
+            <div class="w-24 h-28 bg-black rounded-xl border-2 ${isCrystal?'border-cyan-600':'border-purple-600'} flex items-center justify-center"><div id="reel1" class="text-6xl">🍒</div></div>
+            <div class="w-24 h-28 bg-black rounded-xl border-2 ${isCrystal?'border-cyan-600':'border-purple-600'} flex items-center justify-center"><div id="reel2" class="text-6xl">🍋</div></div>
+            <div class="w-24 h-28 bg-black rounded-xl border-2 ${isCrystal?'border-cyan-600':'border-purple-600'} flex items-center justify-center"><div id="reel3" class="text-6xl">🔔</div></div>
           </div>
         </div>
-        <input id="slots-bet" type="number" value="50" min="10" class="w-full mb-4 p-3 rounded-xl bg-black border border-purple-700 text-center text-xl font-casino">
-        <button onclick="spinSlots('${type}')" id="spin-btn" class="w-full py-4 rounded-2xl font-bold text-xl ${isCrystal?'bg-gradient-to-r from-cyan-600 to-blue-600':'bg-gradient-to-r from-purple-600 to-pink-600'}">SPIN</button>
+        <input id="slots-bet" type="number" value="50" min="10" class="w-full mb-4 p-3 rounded-xl bg-black border border-purple-700 text-center text-xl">
+        <button onclick="spinSlots('${type}')" id="spin-btn" class="w-full py-4 rounded-2xl font-bold text-xl ${isCrystal?'bg-cyan-600':'bg-purple-600'}">SPIN</button>
         <div id="slots-result" class="mt-4 text-center text-xl font-bold min-h-[40px]"></div>
       </div>
     </div>`;
@@ -522,13 +544,13 @@ async function spinSlots(type) {
 
 function renderDice() {
   document.getElementById('game-content').innerHTML = `
-    <div class="max-w-md mx-auto card rounded-2xl p-8 text-center">
+    <div class="max-w-md mx-auto bg-[#12121e] rounded-2xl p-8 text-center border border-purple-900/40">
       <input id="dice-bet" type="number" value="50" min="10" class="w-32 p-3 rounded-xl bg-black border border-purple-700 text-center text-xl mb-6">
       <div class="flex gap-4 mb-6">
-        <button onclick="playDice('under')" class="btn-primary flex-1 py-4 rounded-xl font-bold">SOUS 50</button>
-        <button onclick="playDice('over')" class="btn-primary flex-1 py-4 rounded-xl font-bold">SUR 50</button>
+        <button onclick="playDice('under')" class="flex-1 py-4 rounded-xl bg-purple-600 font-bold">SOUS 50</button>
+        <button onclick="playDice('over')" class="flex-1 py-4 rounded-xl bg-purple-600 font-bold">SUR 50</button>
       </div>
-      <div id="dice-result" class="text-4xl font-casino"></div>
+      <div id="dice-result" class="text-4xl font-title"></div>
     </div>`;
 }
 async function playDice(choice) {
@@ -542,9 +564,9 @@ async function playDice(choice) {
 
 function renderSimple(game) {
   document.getElementById('game-content').innerHTML = `
-    <div class="max-w-md mx-auto card rounded-2xl p-8 text-center">
+    <div class="max-w-md mx-auto bg-[#12121e] rounded-2xl p-8 text-center border border-purple-900/40">
       <input id="simple-bet" type="number" value="50" min="10" class="w-32 p-3 rounded-xl bg-black border border-purple-700 text-center text-xl mb-6">
-      <button onclick="playSimple('${game}')" class="btn-primary w-full py-4 rounded-xl font-bold">JOUER</button>
+      <button onclick="playSimple('${game}')" class="w-full py-4 rounded-xl bg-purple-600 font-bold">JOUER</button>
       <div id="simple-result" class="mt-6 text-2xl"></div>
     </div>`;
 }
