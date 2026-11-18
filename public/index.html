@@ -187,7 +187,7 @@ async function startApp() {
   updateBalance();
   document.getElementById('profile-email').textContent = currentUser.email;
   document.getElementById('profile-date').textContent = new Date(currentUser.createdAt).toLocaleDateString('fr-FR');
-  if (currentUser.isAdmin) document.getElementById('admin-nav').classList.remove('hidden');
+  if (currentUser.isAdmin || currentUser.isModerator) document.getElementById('admin-nav').classList.remove('hidden');
   showPage('games');
 }
 function updateBalance() {
