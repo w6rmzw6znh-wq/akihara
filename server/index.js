@@ -43,12 +43,12 @@ app.post('/api/register', (req, res) => {
     const hash = bcrypt.hashSync(password, 10);
     const result = db.prepare('INSERT INTO users (email, password, balance) VALUES (?, ?, 1000)').run(cleanEmail, hash);
     
-    const user = db.prepare('SELECT id, email, balance, is_admin, created_at FROM users WHERE id = ?').get(result.lastInsertRowid);
-    const token = jwt.sign({ id: user.id, email: user.email, isAdmin: !!user.is_admin }, JWT_SECRET, { expiresIn: '30d' });
+    const user = db.prepare('SELECT id, email, balance, is_admin, is_moderator, created_at FROM users WHERE id = ?').get(result.lastInsertRowid);
+    const token = jwt.sign({ id: user.id, email: user.email, isAdmin: !!user.is_admin, isModerator: !!user.is_moderator }, JWT_SECRET, { expiresIn: '30d' });
 
     res.json({
       token,
-      user: { id: user.id, email: user.email, balance: user.balance, isAdmin: !!user.is_admin, createdAt: user.created_at }
+      user: { id: user.id, email: user.email, balance: user.balance, isAdmin: !!user.is_admin, isModerator: !!user.is_moderator, createdAt: user.created_at }
     });
   } catch (e) {
     console.error(e);
@@ -66,7 +66,7 @@ app.post('/api/login', (req, res) => {
       return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
     }
 
-    const token = jwt.sign({ id: user.id, email: user.email, isAdmin: !!user.is_admin }, JWT_SECRET, { expiresIn: '30d' });
+    const token = jwt.sign({ id: user.id, email: user.email, isAdmin: !!user.is_admin, isModerator: !!user.is_moderator }, JWT_SECRET, { expiresIn: '30d' });
     res.json({
       token,
       user: {
@@ -74,6 +74,7 @@ app.post('/api/login', (req, res) => {
         email: user.email,
         balance: user.balance,
         isAdmin: !!user.is_admin,
+        isModerator: !!user.is_moderator,
         createdAt: user.created_at
       }
     });
@@ -83,13 +84,14 @@ app.post('/api/login', (req, res) => {
 });
 
 app.get('/api/me', auth, (req, res) => {
-  const user = db.prepare('SELECT id, email, balance, is_admin, created_at, last_daily, last_weekly, last_monthly FROM users WHERE id = ?').get(req.user.id);
+  const user = db.prepare('SELECT id, email, balance, is_admin, is_moderator, created_at, last_daily, last_weekly, last_monthly FROM users WHERE id = ?').get(req.user.id);
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
   res.json({
     id: user.id,
     email: user.email,
     balance: user.balance,
     isAdmin: !!user.is_admin,
+    isModerator: !!user.is_moderator,
     createdAt: user.created_at,
     lastDaily: user.last_daily,
     lastWeekly: user.last_weekly,
@@ -120,8 +122,8 @@ app.post('/api/bonus/:type', auth, (req, res) => {
 });
 
 app.get('/api/admin/users', auth, adminOnly, (req, res) => {
-  const users = db.prepare('SELECT id, email, balance, is_admin, created_at FROM users ORDER BY id').all();
-  res.json(users.map(u => ({ ...u, isAdmin: !!u.is_admin })));
+  const users = db.prepare('SELECT id, email, balance, is_admin, is_moderator, created_at FROM users ORDER BY id').all();
+  res.json(users.map(u => ({ ...u, isAdmin: !!u.is_admin, isModerator: !!u.is_moderator })));
 });
 
 app.post('/api/admin/balance', auth, adminOnly, (req, res) => {
@@ -137,6 +139,13 @@ app.post('/api/admin/balance', auth, adminOnly, (req, res) => {
   const user = db.prepare('SELECT id, email, balance FROM users WHERE id = ?').get(userId);
   db.prepare('INSERT INTO transactions (user_id, type, amount, details) VALUES (?, ?, ?, ?)').run(userId, 'admin', amount, mode || 'add');
   res.json(user);
+});
+
+app.post('/api/admin/moderator', auth, adminOnly, (req, res) => {
+  const { userId, isModerator } = req.body;
+  if (!userId) return res.status(400).json({ error: 'ID manquant' });
+  db.prepare('UPDATE users SET is_moderator = ? WHERE id = ?').run(isModerator ? 1 : 0, userId);
+  res.json({ success: true });
 });
 
 function getBalance(userId) {
@@ -298,4 +307,3 @@ app.listen(PORT, () => {
   console.log(`🎰 Akihara Casino running on port ${PORT}`);
   console.log(`👤 Admin: zerr59 / 12345678`);
 });
-  
