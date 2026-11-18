@@ -30,21 +30,16 @@ db.exec(`
   );
 `);
 
-// Ajoute la colonne si elle n'existe pas (pour les anciennes bases)
 try {
   db.prepare('SELECT is_moderator FROM users LIMIT 1').get();
 } catch {
   db.exec('ALTER TABLE users ADD COLUMN is_moderator INTEGER DEFAULT 0');
-  console.log('✅ Colonne is_moderator ajoutée');
 }
 
 const admin = db.prepare('SELECT id FROM users WHERE email = ?').get('zerr59');
 if (!admin) {
   const hash = bcrypt.hashSync('12345678', 10);
-  db.prepare(`
-    INSERT INTO users (email, password, balance, is_admin)
-    VALUES (?, ?, 100000, 1)
-  `).run('zerr59', hash);
+  db.prepare('INSERT INTO users (email, password, balance, is_admin) VALUES (?, ?, 100000, 1)').run('zerr59', hash);
   console.log('✅ Admin créé : zerr59 / 12345678');
 }
 
